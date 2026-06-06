@@ -6,7 +6,7 @@ import {
 } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { AlertCircle, Loader2, Lock, ArrowRight, Sparkles } from "lucide-react"
 
 import { useTenantStore } from "@/store/useTenantStore"
 import {
@@ -26,7 +26,7 @@ export default function LoginPage() {
   const location = useLocation()
   const { config } = useTenantStore()
 
-  const from = location.state?.from || `/marketplace/${slug}`
+  const from = location.state?.from || `/${slug}`
 
   const {
     register,
@@ -61,96 +61,118 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-[80vh] items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 rounded-3xl border bg-white p-10 shadow-xl">
-        <div className="text-center">
-          {config?.logo_url ? (
-            <img
-              src={config.logo_url}
-              alt="Logo"
-              className="mx-auto h-12 object-contain"
-            />
-          ) : (
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">
-              {config?.name}
+    <div className="relative flex min-h-[85vh] items-center justify-center px-4 py-12 sm:px-6 lg:px-8 bg-slate-50/50 font-sans overflow-hidden">
+
+      {/* Subtle Corporate Grid Background */}
+      <div className="absolute inset-0 z-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
+
+      <div className="relative z-10 w-full max-w-[420px]">
+        <div className="rounded-[2rem] border border-slate-100 bg-white p-8 sm:p-10 shadow-xl shadow-slate-200/20">
+
+          <div className="flex flex-col items-center text-center mb-8">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1 text-[9px] font-semibold tracking-widest text-slate-500 uppercase border border-slate-100 mb-6">
+              <Lock className="h-3 w-3 text-slate-400" /> Restricted Access
+            </span>
+
+            {config?.logo_url ? (
+              <img
+                src={config.logo_url}
+                alt={config?.name || "Logo"}
+                className="mx-auto h-10 object-contain mb-5"
+              />
+            ) : (
+              <div className="h-12 w-12 rounded-xl bg-slate-950 flex items-center justify-center mb-5 shadow-inner">
+                <Sparkles className="h-6 w-6 text-slate-300" />
+              </div>
+            )}
+
+            <h2 className="text-2xl font-heading font-semibold tracking-tight text-slate-900">
+              {config?.name ? `Sign in to ${config.name}` : "Portal Authentication"}
             </h2>
-          )}
-          <h2 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
-            Sign in to your account
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Access your rewards and track your orders.
-          </p>
-        </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
-          {apiError && (
-            <div className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <p>{getApiErrorMessage(apiError)}</p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-1 block text-sm font-medium text-slate-700"
-              >
-                Email address
-              </label>
-              <Input
-                id="email"
-                type="email"
-                {...register("email")}
-                className="w-full"
-                placeholder="you@company.com"
-                aria-invalid={!!errors.email}
-              />
-              {errors.email && (
-                <p className="mt-1 text-xs text-red-500">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-1 block text-sm font-medium text-slate-700"
-              >
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                {...register("password")}
-                className="w-full"
-                aria-invalid={!!errors.password}
-              />
-              {errors.password && (
-                <p className="mt-1 text-xs text-red-500">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
+            <p className="mt-2.5 text-xs text-slate-500 leading-relaxed max-w-[280px]">
+              Enter your corporate credentials to access your curated allocation catalog and assets.
+            </p>
           </div>
 
-          <Button
-            type="submit"
-            disabled={isPending}
-            className="w-full rounded-full bg-slate-900 py-6 text-lg font-semibold text-white hover:bg-slate-800"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              "Sign in"
+          <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+            {apiError && (
+              <div className="flex items-start gap-2.5 rounded-xl bg-rose-50 p-3.5 text-xs text-rose-700 border border-rose-100 animate-in fade-in slide-in-from-top-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                <p className="font-medium">{getApiErrorMessage(apiError)}</p>
+              </div>
             )}
-          </Button>
-        </form>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="email"
+                  className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase ml-1"
+                >
+                  Corporate Email
+                </label>
+                <Input
+                  id="email"
+                  type="email"
+                  {...register("email")}
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none"
+                  placeholder="name@organization.com"
+                  aria-invalid={!!errors.email}
+                />
+                {errors.email && (
+                  <p className="mt-1 ml-1 text-[11px] font-medium text-rose-500">
+                    {errors.email.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between ml-1">
+                  <label
+                    htmlFor="password"
+                    className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase"
+                  >
+                    Security Key
+                  </label>
+                  <a href="#" className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-600 transition-colors">
+                    Reset Access?
+                  </a>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  {...register("password")}
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none tracking-widest placeholder:tracking-normal"
+                  placeholder="••••••••"
+                  aria-invalid={!!errors.password}
+                />
+                {errors.password && (
+                  <p className="mt-1 ml-1 text-[11px] font-medium text-rose-500">
+                    {errors.password.message}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <Button
+                type="submit"
+                disabled={isPending}
+                className="w-full h-12 rounded-full bg-slate-950 text-sm font-semibold text-white hover:bg-slate-800 hover:scale-[1.02] transition-all shadow-md group flex items-center justify-center gap-2"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Authenticating...
+                  </>
+                ) : (
+                  <>
+                    Log In <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )

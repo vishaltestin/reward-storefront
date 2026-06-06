@@ -136,3 +136,39 @@ export const useUserOrders = (slug: string) => {
     enabled: !!slug,
   })
 }
+
+
+
+export interface FilterParams {
+  q?: string
+  category_slug?: string
+  min_price?: number
+  max_price?: number
+  sort_by?: "default" | "price_asc" | "price_desc" | "newest"
+  per_page?: number
+  page?: number
+}
+ 
+export interface PaginatedProducts {
+  data: ProductSummary[]
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+  from: number
+  to: number
+}
+ 
+export const useFilterProducts = (slug: string, params: FilterParams) => {
+  return useQuery<PaginatedProducts>({
+    queryKey: ["products-filter", slug, params],
+    queryFn: async () => {
+      const cleanParams = Object.fromEntries(
+        Object.entries(params).filter(([, v]) => v !== undefined && v !== "" && v !== null)
+      )
+      const { data } = await api.get(`/${slug}/products/filter`, { params: cleanParams })
+      return data as PaginatedProducts
+    },
+    enabled: !!slug,
+  })
+}

@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   Receipt,
   AlertCircle,
+  Sparkles,
+  Lock,
+  ArrowRight
 } from "lucide-react"
 
 import { useCartStore } from "@/store/useCartStore"
@@ -97,6 +100,7 @@ export default function CheckoutPage() {
     useVerifyPaymentMutation(slug!)
 
   const isBusy = isProcessing || isVerifying || isApplyingCoupon
+
   useEffect(() => {
     if (items.length === 0) {
       navigate(`/${slug}`)
@@ -197,7 +201,7 @@ export default function CheckoutPage() {
     // PHASE 1: Initialize Checkout (Escrow & Math)
     processCheckout(payload, {
       onSuccess: (data) => {
-        // SCENARIO A: 100% Free Order (Paid entirely by points/coupons)
+        // SCENARIO A: 100% Free Order
         if (data.status === "paid" || data.fiat_amount_due <= 0) {
           clearCart()
           navigate(`/${slug}/order-success/${data.order_number}`)
@@ -205,15 +209,12 @@ export default function CheckoutPage() {
         }
 
         // SCENARIO B: Requires Fiat Payment
-        // This is where you will eventually put the Razorpay/Stripe JS SDK trigger.
-        // For now, we simulate it with a browser popup.
         const userApprovedPayment = window.confirm(
           `*** MOCK PAYMENT GATEWAY ***\n\nOrder Total: ₹${data.fiat_amount_due.toLocaleString("en-IN")}\n\nClick OK to simulate a successful credit card charge.\nClick Cancel to simulate a failed/abandoned payment.`
         )
 
         if (userApprovedPayment) {
           // PHASE 2: Verification & Fulfillment
-          // The gateway gave us a success ID, now tell the backend to deduct stock!
           const mockPaymentId = `pay_${Math.random().toString(36).substring(2, 15)}`
 
           verifyPayment(
@@ -230,8 +231,6 @@ export default function CheckoutPage() {
             }
           )
         } else {
-          // User clicked Cancel on the mock gateway.
-          // The order remains 'Pending' in the DB. The points remain in escrow.
           alert(
             "Payment was cancelled. You can complete this payment later from your Orders dashboard."
           )
@@ -243,83 +242,95 @@ export default function CheckoutPage() {
   const renderAddressFields = (
     prefix: "shipping_address" | "billing_address"
   ) => (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">
-          Full Name *
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          Full Name <span className="text-rose-500">*</span>
         </label>
         <Input
           {...register(`${prefix}.name`)}
           aria-invalid={!!errors[prefix]?.name}
+          className="h-11 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none"
         />
         {errors[prefix]?.name && (
-          <p className="text-xs text-red-500">
+          <p className="text-[11px] font-medium text-rose-500 mt-1">
             {errors[prefix]?.name?.message}
           </p>
         )}
       </div>
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">
-          Mobile Number *
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          Mobile Number <span className="text-rose-500">*</span>
         </label>
         <Input
           type="tel"
           {...register(`${prefix}.mobile`)}
           aria-invalid={!!errors[prefix]?.mobile}
+          className="h-11 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none"
         />
         {errors[prefix]?.mobile && (
-          <p className="text-xs text-red-500">
+          <p className="text-[11px] font-medium text-rose-500 mt-1">
             {errors[prefix]?.mobile?.message}
           </p>
         )}
       </div>
-      <div className="space-y-1 md:col-span-2">
-        <label className="text-sm font-medium text-slate-700">
-          Street Address *
+      <div className="space-y-1.5 md:col-span-2">
+        <label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          Street Address <span className="text-rose-500">*</span>
         </label>
         <Input
-          placeholder="Flat, House no., Building"
+          placeholder="Flat, House no., Building, Company, Apartment"
           {...register(`${prefix}.line1`)}
           aria-invalid={!!errors[prefix]?.line1}
+          className="h-11 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none"
         />
         {errors[prefix]?.line1 && (
-          <p className="text-xs text-red-500">
+          <p className="text-[11px] font-medium text-rose-500 mt-1">
             {errors[prefix]?.line1?.message}
           </p>
         )}
       </div>
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">City *</label>
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          City <span className="text-rose-500">*</span>
+        </label>
         <Input
           {...register(`${prefix}.city`)}
           aria-invalid={!!errors[prefix]?.city}
+          className="h-11 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none"
         />
         {errors[prefix]?.city && (
-          <p className="text-xs text-red-500">
+          <p className="text-[11px] font-medium text-rose-500 mt-1">
             {errors[prefix]?.city?.message}
           </p>
         )}
       </div>
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">State *</label>
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          State <span className="text-rose-500">*</span>
+        </label>
         <Input
           {...register(`${prefix}.state`)}
           aria-invalid={!!errors[prefix]?.state}
+          className="h-11 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none"
         />
         {errors[prefix]?.state && (
-          <p className="text-xs text-red-500">
+          <p className="text-[11px] font-medium text-rose-500 mt-1">
             {errors[prefix]?.state?.message}
           </p>
         )}
       </div>
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Pincode *</label>
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          Pincode <span className="text-rose-500">*</span>
+        </label>
         <Input
           {...register(`${prefix}.pincode`)}
           aria-invalid={!!errors[prefix]?.pincode}
+          className="h-11 rounded-xl border border-slate-200 bg-slate-50/50 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none"
         />
         {errors[prefix]?.pincode && (
-          <p className="text-xs text-red-500">
+          <p className="text-[11px] font-medium text-rose-500 mt-1">
             {errors[prefix]?.pincode?.message}
           </p>
         )}
@@ -328,250 +339,314 @@ export default function CheckoutPage() {
   )
 
   return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="grid grid-cols-1 gap-12 lg:grid-cols-12"
-    >
-      <div className="space-y-8 lg:col-span-7">
-        <h1 className="text-3xl font-bold text-slate-900">Checkout</h1>
+    <div className="max-w-7xl mx-auto py-8 font-sans">
+      <div className="mb-8 space-y-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold tracking-wide text-slate-600 uppercase">
+          <Lock className="h-3 w-3" /> Secure Checkout Validation
+        </span>
+        <h1 className="text-3xl font-heading font-semibold tracking-tight text-slate-900 md:text-4xl">
+          Finalize Allocation
+        </h1>
+      </div>
 
-        {requiresShipping ? (
-          <section className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-slate-900">
-              <MapPin className="h-5 w-5 text-slate-400" /> Shipping Address
-            </h2>
-            {renderAddressFields("shipping_address")}
-          </section>
-        ) : (
-          <section className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="mb-2 text-xl font-bold text-slate-900">
-              Digital Delivery
-            </h2>
-            <p className="text-sm text-slate-600">
-              All items in your cart are digital. Details will be sent to{" "}
-              <strong>{user?.email}</strong> immediately.
-            </p>
-          </section>
-        )}
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="grid grid-cols-1 gap-8 lg:grid-cols-12 items-start"
+      >
+        {/* LEFT COLUMN: Details & Forms */}
+        <div className="space-y-6 lg:col-span-7">
 
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-              <Receipt className="h-5 w-5 text-slate-400" /> Billing Address
-            </h2>
-          </div>
+          {/* Order Summary Block */}
+          <section className="rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-sm">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                <Sparkles className="h-4 w-4 text-slate-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-heading font-semibold text-slate-900 tracking-tight">
+                  Allocation Summary
+                </h2>
+                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                  {items.length} {items.length === 1 ? "Asset" : "Assets"} in Cart
+                </p>
+              </div>
+            </div>
 
-          <label className="mb-6 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-              {...register("use_shipping_for_billing")}
-            />
-            Same as shipping address
-          </label>
-
-          {!useShippingForBilling && renderAddressFields("billing_address")}
-        </section>
-
-        <section className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-xl font-bold text-slate-900">
-            Order Summary ({items.length} items)
-          </h2>
-          <div className="space-y-4 divide-y">
-            {items.map((item) => (
-              <div key={item.id} className="flex py-4 first:pt-0 last:pb-0">
-                <div className="h-16 w-16 shrink-0 rounded-lg border bg-slate-50 p-2">
-                  <img
-                    src={
-                      item.variant?.image_url ||
-                      item.product.main_image_url ||
-                      ""
-                    }
-                    alt={item.product.name}
-                    className="h-full w-full object-contain mix-blend-multiply"
-                  />
+            <div className="space-y-4 divide-y divide-slate-50">
+              {items.map((item) => (
+                <div key={item.id} className="flex py-4 first:pt-0 last:pb-0 group">
+                  <div className="h-16 w-16 shrink-0 rounded-xl border border-slate-100 bg-white p-1.5 flex items-center justify-center transition-all group-hover:border-slate-200">
+                    <img
+                      src={
+                        item.variant?.image_url ||
+                        item.product.main_image_url ||
+                        ""
+                      }
+                      alt={item.product.name}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                  <div className="ml-4 flex flex-1 flex-col justify-center">
+                    <h4 className="line-clamp-1 text-sm font-semibold text-slate-800">
+                      {item.product.name}
+                    </h4>
+                    {item.variant && (
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                        {Object.values(item.variant.attributes).join(" • ")}
+                      </p>
+                    )}
+                    <div className="mt-1.5 flex items-center gap-3">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                        Qty: {item.quantity}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="ml-4 flex flex-1 flex-col justify-center">
-                  <h4 className="line-clamp-1 font-semibold text-slate-900">
-                    {item.product.name}
-                  </h4>
-                  {item.variant && (
-                    <p className="text-xs text-slate-500">
-                      {Object.values(item.variant.attributes).join(" • ")}
-                    </p>
-                  )}
-                  <p className="mt-1 text-sm font-medium text-slate-500">
-                    Qty: {item.quantity}
+              ))}
+            </div>
+          </section>
+
+          {/* Shipping Address Block */}
+          {requiresShipping ? (
+            <section className="rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-sm">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                  <MapPin className="h-4 w-4 text-slate-700" />
+                </div>
+                <h2 className="text-lg font-heading font-semibold text-slate-900 tracking-tight">
+                  Fulfillment Address
+                </h2>
+              </div>
+              {renderAddressFields("shipping_address")}
+            </section>
+          ) : (
+            <section className="rounded-3xl border border-slate-100 bg-slate-50/50 p-6 sm:p-8 shadow-sm flex items-start gap-4">
+              <div className="bg-white p-2 rounded-xl border border-slate-100 shadow-sm shrink-0">
+                <Sparkles className="h-5 w-5 text-indigo-500" />
+              </div>
+              <div>
+                <h2 className="text-base font-heading font-semibold text-slate-900">
+                  Digital Delivery Secured
+                </h2>
+                <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                  All items in your cart are digital assets. Fulfillment details and instructions will be dispatched to <strong>{user?.email}</strong> immediately upon completion.
+                </p>
+              </div>
+            </section>
+          )}
+
+          {/* Billing Address Block */}
+          <section className="rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                  <Receipt className="h-4 w-4 text-slate-700" />
+                </div>
+                <h2 className="text-lg font-heading font-semibold text-slate-900 tracking-tight">
+                  Billing Details
+                </h2>
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-700 p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors mb-6">
+              <div className="relative flex items-center">
+                <input
+                  type="checkbox"
+                  className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 checked:border-slate-900 checked:bg-slate-900 transition-all focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:ring-offset-2"
+                  {...register("use_shipping_for_billing")}
+                />
+                <CheckCircle2 className="pointer-events-none absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+              </div>
+              Use fulfillment address for billing
+            </label>
+
+            {!useShippingForBilling && (
+              <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+                {renderAddressFields("billing_address")}
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* RIGHT COLUMN: Payment Summary */}
+        <div className="lg:col-span-5">
+          <div className="sticky top-24 space-y-6">
+
+            {/* Main Payment Widget */}
+            <div className="rounded-3xl border border-slate-100 bg-white shadow-xl shadow-slate-200/20 overflow-hidden">
+
+              {/* Wallet Header Card (Dark Premium Segment) */}
+              <div className="bg-slate-950 p-6 sm:p-8 relative overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_60%)]" />
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Wallet className="h-4 w-4 text-slate-400" />
+                    <span className="text-[10px] font-semibold tracking-widest uppercase text-slate-400">Corporate Wallet</span>
+                  </div>
+                  <p className="text-3xl font-heading font-semibold text-white">
+                    {walletBalance.toLocaleString("en-IN")}{" "}
+                    <span className="text-sm font-medium text-slate-500">
+                      {config?.points_name || "Points"}
+                    </span>
                   </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-      </div>
 
-      <div className="lg:col-span-5">
-        <div className="sticky top-24 space-y-6 rounded-2xl border bg-slate-50 p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">Payment Summary</h2>
+              <div className="p-6 sm:p-8 space-y-7">
 
-          {checkoutError && (
-            <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>{getApiErrorMessage(checkoutError)}</p>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-bold text-slate-900">
-              <Ticket className="h-4 w-4" /> Have a Promo Code?
-            </label>
-
-            {appliedCoupon ? (
-              <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span className="font-bold">{appliedCoupon.code}</span>{" "}
-                  applied!
+                {/* Apply Points */}
+                <div className="space-y-2.5">
+                  <label className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+                    Allocate Points
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={maxPointsUsable}
+                      value={pointsToBurn || ""}
+                      placeholder="0"
+                      onChange={(e) =>
+                        setPointsToBurn(
+                          Math.min(
+                            maxPointsUsable,
+                            Math.max(0, Number(e.target.value))
+                          )
+                        )
+                      }
+                      className="h-11 rounded-full border-slate-200 bg-slate-50/50 text-sm font-medium focus:bg-white focus:border-slate-300 shadow-none text-slate-900"
+                      disabled={totalAfterCoupon === 0}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 rounded-full px-5 text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-900 hover:text-white transition-all shadow-none"
+                      onClick={() => setPointsToBurn(maxPointsUsable)}
+                      disabled={totalAfterCoupon === 0}
+                    >
+                      Max
+                    </Button>
+                  </div>
+                  {fiatDiscountFromPoints > 0 && (
+                    <p className="text-[11px] font-medium text-emerald-600 flex items-center gap-1 mt-1">
+                      <Sparkles className="h-3 w-3" /> Offset applied: ₹{fiatDiscountFromPoints.toLocaleString("en-IN")}
+                    </p>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setAppliedCoupon(null)}
-                  className="text-xs text-slate-500 underline hover:text-slate-700"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter code"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value)}
-                  className="bg-white uppercase"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleApplyCoupon}
-                  disabled={!couponInput || isApplyingCoupon}
-                >
-                  {isApplyingCoupon ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+
+                <div className="h-px bg-slate-100 w-full" />
+
+                {/* Promo Code */}
+                <div className="space-y-2.5">
+                  <label className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
+                    <Ticket className="h-3.5 w-3.5" /> Voucher Code
+                  </label>
+
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-800">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        <span className="font-semibold">{appliedCoupon.code}</span> applied
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAppliedCoupon(null)}
+                        className="text-[11px] font-semibold text-emerald-600/70 hover:text-emerald-700 uppercase tracking-wide"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   ) : (
-                    "Apply"
+                    <div className="relative">
+                      <Input
+                        placeholder="Enter authorization code"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value)}
+                        className="h-11 w-full rounded-full border border-slate-200 bg-slate-50/50 pl-4 pr-24 text-sm uppercase focus:border-slate-300 focus:bg-white focus:ring-0 shadow-none"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={!couponInput || isApplyingCoupon}
+                        className="absolute right-1 top-1 h-9 rounded-full bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 shadow-none"
+                      >
+                        {isApplyingCoupon ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Apply"}
+                      </Button>
+                    </div>
+                  )}
+                  {couponError && (
+                    <p className="text-[11px] font-medium text-rose-500 mt-1">
+                      {getApiErrorMessage(couponError)}
+                    </p>
+                  )}
+                </div>
+
+                {checkoutError && (
+                  <div className="flex items-start gap-2 rounded-xl bg-rose-50 p-3 text-xs text-rose-700 border border-rose-100">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <p>{getApiErrorMessage(checkoutError)}</p>
+                  </div>
+                )}
+
+                {/* Ledger / Totals */}
+                <div className="space-y-3 pt-2 text-sm text-slate-600">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Subtotal</span>
+                    <span className="font-semibold text-slate-900">
+                      ₹{cartTotals.totalFiat.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  {appliedCoupon && (
+                    <div className="flex justify-between items-center font-medium text-emerald-600">
+                      <span>Voucher Discount</span>
+                      <span>- ₹{couponDiscountFiat.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+
+                  {pointsToBurn > 0 && (
+                    <div className="flex justify-between items-center font-medium text-indigo-600">
+                      <span>Wallet Offset</span>
+                      <span>- ₹{fiatDiscountFromPoints.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-2">
+                    <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Total Due</span>
+                    <span className="text-2xl font-heading font-bold text-slate-900 tracking-tight">
+                      ₹{finalFiatDue.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isBusy}
+                  className="w-full h-14 rounded-full bg-slate-950 text-sm font-semibold text-white hover:bg-slate-800 hover:scale-[1.02] transition-all shadow-md group flex items-center justify-center gap-2"
+                >
+                  {isBusy ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" /> Finalizing...
+                    </>
+                  ) : finalFiatDue > 0 ? (
+                    <>
+                      Pay ₹{finalFiatDue.toLocaleString("en-IN")} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </>
+                  ) : (
+                    <>
+                      Confirm Allocation (Free) <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </>
                   )}
                 </Button>
-              </div>
-            )}
-            {couponError && (
-              <p className="text-xs text-red-500">
-                {getApiErrorMessage(couponError)}
-              </p>
-            )}
-          </div>
 
-          <div className="rounded-xl border border-blue-100 bg-white p-4">
-            <div className="mb-4 flex items-center gap-3 text-blue-900">
-              <Wallet className="h-5 w-5" />
-              <h3 className="font-bold">Your Wallet</h3>
-            </div>
-            <p className="mb-1 text-sm text-slate-500">Available Balance</p>
-            <p className="mb-4 text-2xl font-bold text-slate-900">
-              {walletBalance}{" "}
-              <span className="text-sm font-normal text-slate-500">
-                {config?.points_name}
-              </span>
-            </p>
-
-            <div className="space-y-2 border-t pt-4">
-              <label className="block text-sm font-medium text-slate-700">
-                Points to apply to this order:
-              </label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  min={0}
-                  max={maxPointsUsable}
-                  value={pointsToBurn}
-                  onChange={(e) =>
-                    setPointsToBurn(
-                      Math.min(
-                        maxPointsUsable,
-                        Math.max(0, Number(e.target.value))
-                      )
-                    )
-                  }
-                  className="bg-slate-50"
-                  disabled={totalAfterCoupon === 0}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setPointsToBurn(maxPointsUsable)}
-                  disabled={totalAfterCoupon === 0}
-                >
-                  Max
-                </Button>
-              </div>
-              {fiatDiscountFromPoints > 0 && (
-                <p className="mt-1 text-xs font-medium text-blue-600">
-                  Saves you ₹{fiatDiscountFromPoints.toLocaleString("en-IN")}
+                <p className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-400 pt-2">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Encrypted & Secured Node
                 </p>
-              )}
+              </div>
             </div>
           </div>
-
-          <div className="space-y-3 pt-4 text-sm text-slate-600">
-            <div className="flex justify-between">
-              <span>Cart Total</span>
-              <span className="font-semibold text-slate-900">
-                ₹{cartTotals.totalFiat.toLocaleString("en-IN")}
-              </span>
-            </div>
-
-            {appliedCoupon && (
-              <div className="flex justify-between font-medium text-green-600">
-                <span>Promo Code ({appliedCoupon.code})</span>
-                <span>- ₹{couponDiscountFiat.toLocaleString("en-IN")}</span>
-              </div>
-            )}
-
-            {pointsToBurn > 0 && (
-              <div className="flex justify-between font-medium text-blue-600">
-                <span>Wallet Points Applied</span>
-                <span>- ₹{fiatDiscountFromPoints.toLocaleString("en-IN")}</span>
-              </div>
-            )}
-
-            <div className="flex justify-between border-t border-slate-200 pt-3 text-xl font-bold text-slate-900">
-              <span>Total to Pay</span>
-              <span>₹{finalFiatDue.toLocaleString("en-IN")}</span>
-            </div>
-          </div>
-
-          <Button
-            type="submit"
-            size="lg"
-            disabled={isBusy}
-            className="w-full rounded-full bg-slate-900 py-6 text-lg text-white hover:bg-slate-800"
-          >
-            {isBusy ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing...
-              </>
-            ) : finalFiatDue > 0 ? (
-              `Pay ₹${finalFiatDue.toLocaleString("en-IN")}`
-            ) : (
-              "Place Order (Free)"
-            )}
-          </Button>
-
-          <p className="flex items-center justify-center gap-2 text-xs text-slate-400">
-            <ShieldCheck className="h-4 w-4" /> Secure 256-bit encrypted
-            checkout
-          </p>
         </div>
-      </div>
-    </form>
+      </form>
+    </div>
   )
 }

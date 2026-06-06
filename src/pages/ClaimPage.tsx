@@ -41,6 +41,7 @@ export default function ClaimPage() {
     return (
       <div className="p-12 text-center text-red-500">
         <ShieldX className="mx-auto h-12 w-12" /> Link Invalid or Expired.
+        {error.message}
       </div>
     )
   if (!data) return null

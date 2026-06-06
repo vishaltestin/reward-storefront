@@ -7,12 +7,31 @@ import {
   Info,
   CheckCircle2,
   Check,
+  Sparkles,
+  ShieldCheck,
+  Package,
+  MapPin,
+  Calendar,
+  Users,
+  ExternalLink,
+  ArrowLeft,
+  Zap,
+  Star,
+  ChevronRight,
 } from "lucide-react"
 import { useProductDetail, type ProductVariant } from "@/hooks/useStorefront"
 import { useTenantStore } from "@/store/useTenantStore"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCartStore } from "@/store/useCartStore"
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel"
+import { Link } from "react-router-dom"
 
 interface DigitalTypeData {
   storeName?: string
@@ -51,24 +70,15 @@ const getYouTubeEmbedUrl = (url: string | null) => {
 }
 
 export default function ProductPage() {
-  const { slug, productSlug } = useParams<{
-    slug: string
-    productSlug: string
-  }>()
+  const { slug, productSlug } = useParams<{ slug: string; productSlug: string }>()
   const navigate = useNavigate()
   const { config } = useTenantStore()
   const addItem = useCartStore((state) => state.addItem)
 
-  const {
-    data: product,
-    isLoading,
-    isError,
-  } = useProductDetail(slug!, productSlug!)
+  const { data: product, isLoading, isError } = useProductDetail(slug!, productSlug!)
 
   const [quantity, setQuantity] = useState<number>(1)
-  const [selectedAttributes, setSelectedAttributes] = useState<
-    Record<string, string>
-  >({})
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({})
   const [activeThumbnail, setActiveThumbnail] = useState<string | null>(null)
 
   const activeAttributes = useMemo(() => {
@@ -80,18 +90,23 @@ export default function ProductPage() {
     if (!product?.variants?.length) return null
     return (
       product.variants.find((v) =>
-        Object.entries(activeAttributes).every(
-          ([key, value]) => v.attributes[key] === value
-        )
+        Object.entries(activeAttributes).every(([key, value]) => v.attributes[key] === value)
       ) || null
     )
   }, [product, activeAttributes])
 
-  const displayImage =
-    activeThumbnail ||
-    selectedVariant?.image_url ||
-    product?.main_image_url ||
-    null
+  const displayImage = activeThumbnail || selectedVariant?.image_url || product?.main_image_url || null
+
+  const allImages = useMemo(() => {
+    if (!product) return []
+    const images = new Set<string>()
+    if (displayImage) images.add(displayImage)
+    if (product.main_image_url) images.add(product.main_image_url)
+    if (product.gallery_images) {
+      product.gallery_images.forEach((img) => images.add(img as string))
+    }
+    return Array.from(images).filter(Boolean)
+  }, [displayImage, product])
 
   const availableAttributes = useMemo<Record<string, string[]>>(() => {
     if (!product?.variants?.length) return {}
@@ -110,24 +125,11 @@ export default function ProductPage() {
   }, [product])
 
   const pricing = useMemo(() => {
-    if (!product)
-      return {
-        unitFiat: 0,
-        unitPoints: 0,
-        mrpFiat: 0,
-        totalFiat: 0,
-        isTierApplied: false,
-      }
+    if (!product) return { unitFiat: 0, unitPoints: 0, mrpFiat: 0, totalFiat: 0, isTierApplied: false }
 
-    let currentFiat = selectedVariant
-      ? Number(selectedVariant.selling_price)
-      : Number(product.selling_price)
-    let currentPoints = selectedVariant
-      ? selectedVariant.points_equivalent
-      : product.points_equivalent
-    const currentMrp = selectedVariant
-      ? Number(selectedVariant.mrp)
-      : Number(product.mrp)
+    let currentFiat = selectedVariant ? Number(selectedVariant.selling_price) : Number(product.selling_price)
+    let currentPoints = selectedVariant ? selectedVariant.points_equivalent : product.points_equivalent
+    const currentMrp = selectedVariant ? Number(selectedVariant.mrp) : Number(product.mrp)
     let isTierApplied = false
 
     if (product.tier_prices && product.tier_prices.length > 0) {
@@ -155,17 +157,13 @@ export default function ProductPage() {
   }, [product, selectedVariant, quantity])
 
   const maxStock = product?.variants?.length
-    ? selectedVariant
-      ? selectedVariant.stock_quantity
-      : 9999
+    ? selectedVariant ? selectedVariant.stock_quantity : 9999
     : 9999
 
   const handleAttributeSelect = (key: string, value: string) => {
     const proposedAttributes = { ...activeAttributes, [key]: value }
     const exactMatchExists = product?.variants.some((v) =>
-      Object.entries(proposedAttributes).every(
-        ([k, val]) => v.attributes[k] === val
-      )
+      Object.entries(proposedAttributes).every(([k, val]) => v.attributes[k] === val)
     )
 
     let finalVariantMatch = null
@@ -173,14 +171,10 @@ export default function ProductPage() {
     if (exactMatchExists) {
       setSelectedAttributes(proposedAttributes)
       finalVariantMatch = product?.variants.find((v) =>
-        Object.entries(proposedAttributes).every(
-          ([k, val]) => v.attributes[k] === val
-        )
+        Object.entries(proposedAttributes).every(([k, val]) => v.attributes[k] === val)
       )
     } else {
-      const fallbackVariant = product?.variants.find(
-        (v) => v.attributes[key] === value
-      )
+      const fallbackVariant = product?.variants.find((v) => v.attributes[key] === value)
       if (fallbackVariant) {
         setSelectedAttributes(fallbackVariant.attributes)
         finalVariantMatch = fallbackVariant
@@ -204,515 +198,606 @@ export default function ProductPage() {
   if (isLoading) return <PDP_Skeleton />
   if (isError || !product)
     return (
-      <div className="py-20 text-center text-xl font-semibold text-slate-500">
-        Product not found.
+      <div className="flex flex-col items-center justify-center py-40 text-center">
+        <div className="w-20 h-20 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center mb-6">
+          <Package className="h-8 w-8 text-slate-300" />
+        </div>
+        <h2 className="text-2xl font-semibold text-slate-900 tracking-tight">Asset Not Found</h2>
+        <p className="text-slate-400 mt-2 text-sm max-w-xs">This allocation may have been removed or is currently unavailable.</p>
+        <Link to={`/${slug}`} className="mt-8">
+          <Button variant="outline" className="rounded-full gap-2 border-slate-200">
+            <ArrowLeft className="h-4 w-4" /> Return to Catalog
+          </Button>
+        </Link>
       </div>
     )
 
-  const isOutOfStock =
-    product?.variants?.length > 0 &&
-    (!selectedVariant || selectedVariant.stock_quantity === 0)
+  const isOutOfStock = product?.variants?.length > 0 && (!selectedVariant || selectedVariant.stock_quantity === 0)
   const embedUrl = getYouTubeEmbedUrl(product.video_url)
-
   const digitalData = product.type_data as DigitalTypeData | undefined
   const expData = product.type_data as ExperienceTypeData | undefined
+  const discountPct = pricing.mrpFiat > pricing.unitFiat
+    ? Math.round(((pricing.mrpFiat - pricing.unitFiat) / pricing.mrpFiat) * 100)
+    : 0
 
   return (
-    <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-      <div className="space-y-4">
-        <div className="aspect-square w-full overflow-hidden rounded-2xl border bg-white p-8">
-          {displayImage ? (
-            <img
-              src={displayImage}
-              alt={product.name}
-              className="h-full w-full object-contain mix-blend-multiply"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-slate-300">
-              No Image Available
+    <div className="max-w-7xl mx-auto py-6 font-sans">
+
+      {/* ── Breadcrumb ── */}
+      <nav className="mb-8 flex items-center gap-2 text-[11px] font-semibold tracking-wider uppercase text-slate-400">
+        <Link to={`/${slug}`} className="hover:text-slate-700 transition-colors flex items-center gap-1.5">
+          <ArrowLeft className="h-3 w-3" /> Catalog
+        </Link>
+        <ChevronRight className="h-3 w-3 text-slate-300" />
+        <span className="text-slate-600 line-clamp-1 max-w-xs">{product.name}</span>
+      </nav>
+
+      {/* ══════════════════════════════════════════
+          HERO GRID — IMAGE + DETAILS
+      ══════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 items-start">
+
+        {/* ── LEFT: Image Gallery ── */}
+        <div className="lg:col-span-6 xl:col-span-7 space-y-3 lg:sticky lg:top-6">
+
+          {/* Main Image Stage */}
+          <div className="group relative aspect-[4/3.5] w-full overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/80 shadow-sm">
+
+            {/* Type Badge */}
+            <div className="absolute top-4 left-4 z-10">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest backdrop-blur-md border ${product.type === "digital"
+                  ? "bg-violet-50/90 text-violet-700 border-violet-200/60"
+                  : product.type === "experience"
+                    ? "bg-amber-50/90 text-amber-700 border-amber-200/60"
+                    : "bg-white/90 text-slate-600 border-slate-200/60"
+                }`}>
+                <Sparkles className="h-3 w-3" />
+                {product.type}
+              </span>
             </div>
-          )}
-        </div>
-        {((product.gallery_images && product.gallery_images.length > 0) ||
-          product.main_image_url) && (
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {[product.main_image_url, ...(product.gallery_images || [])]
-              .filter(Boolean)
-              .map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveThumbnail(img as string)}
-                  className={`h-20 w-20 shrink-0 overflow-hidden rounded-xl border bg-white p-2 transition-all ${
-                    displayImage === img
-                      ? "ring-2 ring-slate-900"
-                      : "hover:border-slate-400"
-                  }`}
-                >
-                  <img
-                    src={img as string}
-                    alt="Thumb"
-                    className="h-full w-full object-contain mix-blend-multiply"
-                  />
-                </button>
-              ))}
-          </div>
-        )}
-      </div>
 
-      <div className="flex flex-col">
-        {product.brand && (
-          <span className="mb-2 text-sm font-bold tracking-widest text-slate-400 uppercase">
-            {product.brand}
-          </span>
-        )}
-        <h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
-          {product.name}
-        </h1>
-        <p className="mb-6 text-sm text-slate-500">
-          SKU: {selectedVariant ? selectedVariant.sku : product.sku}
-        </p>
-
-        {product.short_description && (
-          <p className="mb-6 text-lg text-slate-600">
-            {product.short_description}
-          </p>
-        )}
-
-        <div className="mb-8 rounded-2xl border bg-slate-50 p-6">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">
-                Price per unit
-              </p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold text-slate-900">
-                  ₹{pricing.unitFiat.toLocaleString("en-IN")}
-                </span>
-                {pricing.mrpFiat > pricing.unitFiat && (
-                  <span className="text-lg font-medium text-slate-400 line-through">
-                    ₹{pricing.mrpFiat.toLocaleString("en-IN")}
-                  </span>
-                )}
+            {/* Discount badge */}
+            {discountPct > 0 && (
+              <div className="absolute top-4 right-4 z-10">
+                <div className="bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full tracking-wide">
+                  −{discountPct}%
+                </div>
               </div>
-              <p className="mt-1 text-sm font-medium text-blue-600">
-                (or use up to {pricing.unitPoints.toLocaleString("en-IN")}{" "}
-                {config?.points_name || "Points"})
-              </p>
-            </div>
-            {pricing.isTierApplied && (
-              <div className="flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                <CheckCircle2 className="h-4 w-4" /> Bulk Discount Applied
+            )}
+
+            {allImages.length > 0 ? (
+              <Carousel className="w-full h-full" opts={{ loop: true }}>
+                <CarouselContent className="h-full">
+                  {allImages.map((img, idx) => (
+                    <CarouselItem key={idx} className="h-full">
+                      <div className="flex h-full w-full items-center justify-center p-10">
+                        <img
+                          src={img}
+                          alt={`${product.name} view ${idx + 1}`}
+                          className="max-h-full max-w-full object-contain mix-blend-multiply transition-transform duration-700 group-hover:scale-[1.03]"
+                        />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                {allImages.length > 1 && (
+                  <>
+                    <CarouselPrevious className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-white/90 backdrop-blur-md border-slate-200 text-slate-600 shadow-md opacity-0 group-hover:opacity-100 transition-all hover:bg-white hover:scale-105" />
+                    <CarouselNext className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 rounded-full bg-white/90 backdrop-blur-md border-slate-200 text-slate-600 shadow-md opacity-0 group-hover:opacity-100 transition-all hover:bg-white hover:scale-105" />
+                  </>
+                )}
+              </Carousel>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-300">
+                <Package className="h-12 w-12 opacity-40" />
+                <span className="text-xs font-medium">No image available</span>
               </div>
             )}
           </div>
-        </div>
 
-        {product.tier_prices &&
-          product.tier_prices.filter(
-            (t) => t.variant_id == null || t.variant_id === selectedVariant?.id
-          ).length > 0 && (
-            <div className="mb-8 space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-4">
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-blue-900">
-                <Info className="h-4 w-4" /> Volume Discounts
-              </h4>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {product.tier_prices
-                  .filter(
-                    (t) =>
-                      t.variant_id == null ||
-                      t.variant_id === selectedVariant?.id
-                  )
-                  .map((tier, i) => (
-                    <div
-                      key={i}
-                      className="rounded-lg bg-white p-2 text-center text-sm shadow-sm"
-                    >
-                      <p className="font-semibold text-slate-900">
-                        Buy {tier.min_quantity}+
-                      </p>
-                      <p className="text-blue-600">
-                        ₹{Number(tier.selling_price).toLocaleString("en-IN")}/ea
-                      </p>
-                    </div>
-                  ))}
-              </div>
+          {/* Thumbnail Strip */}
+          {allImages.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {allImages.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveThumbnail(img)}
+                  className={`relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl bg-white border-2 transition-all duration-200 p-1.5 ${displayImage === img
+                      ? "border-slate-900 shadow-md scale-[1.03]"
+                      : "border-slate-200 hover:border-slate-400 opacity-60 hover:opacity-100"
+                    }`}
+                >
+                  <img src={img} alt="" className="h-full w-full object-contain mix-blend-multiply" />
+                </button>
+              ))}
             </div>
           )}
 
-        {product.variants && product.variants.length > 0 && (
-          <div className="mb-8 space-y-6">
-            {Object.entries(availableAttributes).map(([attrKey, values]) => (
-              <div key={attrKey}>
-                <h4 className="mb-3 text-sm font-semibold text-slate-900">
-                  {attrKey}
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {values.map((val) => {
-                    const isSelected = activeAttributes[attrKey] === val
-                    return (
-                      <button
-                        key={val}
-                        onClick={() => handleAttributeSelect(attrKey, val)}
-                        className={`min-w-12 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                          isSelected
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                        }`}
-                      >
-                        {val}
-                      </button>
-                    )
-                  })}
-                </div>
+          {/* Trust Strip */}
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            {[
+              { icon: ShieldCheck, label: "Secure Checkout" },
+              { icon: Zap, label: "Instant Allocation" },
+              { icon: Star, label: "Premium Quality" },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                <Icon className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide leading-tight">{label}</span>
               </div>
             ))}
           </div>
-        )}
+        </div>
 
-        <div className="mt-auto space-y-6 border-t pt-8">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center rounded-lg border bg-white p-1">
+        {/* ── RIGHT: Product Info & Purchase ── */}
+        <div className="lg:col-span-6 xl:col-span-5 flex flex-col gap-6">
+
+          {/* Brand + Name */}
+          <div>
+            {product.brand && (
+              <p className="mb-2 text-[11px] font-black tracking-[0.2em] text-slate-400 uppercase">{product.brand}</p>
+            )}
+            <h1 className="text-[2rem] font-bold tracking-tight text-slate-950 leading-[1.15] sm:text-[2.25rem]">
+              {product.name}
+            </h1>
+            <p className="mt-2 text-[11px] font-medium text-slate-400 tracking-widest uppercase">
+              SKU: {selectedVariant ? selectedVariant.sku : product.sku}
+            </p>
+          </div>
+
+          {/* Short Description */}
+          {product.short_description && (
+            <p className="text-[15px] text-slate-500 leading-relaxed border-l-2 border-slate-200 pl-4">
+              {product.short_description}
+            </p>
+          )}
+
+          {/* ── Pricing Card ── */}
+          <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+            <div className="bg-white px-6 py-5">
+              <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 mb-2">Allocation Value</p>
+              <div className="flex items-end gap-3 mb-1">
+                <span className="text-[2.5rem] font-black tracking-tight text-slate-950 leading-none">
+                  ₹{pricing.unitFiat.toLocaleString("en-IN")}
+                </span>
+                {pricing.mrpFiat > pricing.unitFiat && (
+                  <div className="mb-1 flex flex-col items-start">
+                    <span className="text-[13px] font-medium text-slate-400 line-through">
+                      ₹{pricing.mrpFiat.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      Save {discountPct}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {pricing.isTierApplied && (
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" /> Volume Price Applied
+                </div>
+              )}
+            </div>
+
+            {/* Points Bar */}
+            <div className="bg-slate-950 px-6 py-3.5 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">or redeem with</span>
+              <span className="text-sm font-bold text-white bg-white/10 border border-white/10 px-4 py-1.5 rounded-full">
+                {pricing.unitPoints.toLocaleString("en-IN")} {config?.points_name || "Points"}
+              </span>
+            </div>
+          </div>
+
+          {/* ── Tier Pricing ── */}
+          {product.tier_prices && product.tier_prices.filter(
+            (t) => t.variant_id == null || t.variant_id === selectedVariant?.id
+          ).length > 0 && (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-5">
+                <h4 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-blue-900 mb-4">
+                  <Info className="h-3.5 w-3.5" /> Volume Discounts
+                </h4>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {product.tier_prices
+                    .filter((t) => t.variant_id == null || t.variant_id === selectedVariant?.id)
+                    .map((tier, i) => (
+                      <div key={i} className={`rounded-xl border bg-white p-3 text-center shadow-sm transition-all ${quantity >= tier.min_quantity ? "border-blue-400 ring-1 ring-blue-300" : "border-blue-100/50"
+                        }`}>
+                        <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wide">Qty {tier.min_quantity}+</p>
+                        <p className="mt-1 text-sm font-bold text-blue-700">
+                          ₹{Number(tier.selling_price).toLocaleString("en-IN")}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+          {/* ── Variant Selection ── */}
+          {product.variants && product.variants.length > 0 && (
+            <div className="space-y-5">
+              {Object.entries(availableAttributes).map(([attrKey, values]) => (
+                <div key={attrKey}>
+                  <h4 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                    {attrKey}
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {values.map((val) => {
+                      const isSelected = activeAttributes[attrKey] === val
+                      return (
+                        <button
+                          key={val}
+                          onClick={() => handleAttributeSelect(attrKey, val)}
+                          className={`relative min-w-[52px] rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 ${isSelected
+                              ? "bg-slate-950 text-white shadow-lg scale-[1.04] border border-slate-950"
+                              : "bg-white text-slate-700 border border-slate-200 hover:border-slate-400 hover:bg-slate-50"
+                            }`}
+                        >
+                          {isSelected && (
+                            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-500 flex items-center justify-center">
+                              <Check className="h-2 w-2 text-white" />
+                            </span>
+                          )}
+                          {val}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Quantity + Stock ── */}
+          <div className="flex items-center justify-between py-1">
+            <div className="flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
               <button
                 onClick={() => handleQuantityChange(-1)}
                 disabled={quantity <= 1}
-                className="rounded-md p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                className="px-4 py-3 text-slate-500 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-30 transition-colors border-r border-slate-100"
               >
                 <Minus className="h-4 w-4" />
               </button>
-              <span className="w-12 text-center font-semibold text-slate-900">
+              <span className="w-14 text-center text-base font-bold text-slate-900 tabular-nums">
                 {quantity}
               </span>
               <button
                 onClick={() => handleQuantityChange(1)}
                 disabled={quantity >= maxStock}
-                className="rounded-md p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                className="px-4 py-3 text-slate-500 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-30 transition-colors border-l border-slate-100"
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
+
             {product.variants && product.variants.length > 0 && (
-              <span className="text-sm text-slate-500">
+              <div>
                 {selectedVariant ? (
                   selectedVariant.stock_quantity > 0 ? (
-                    `${selectedVariant.stock_quantity} available`
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-sm font-semibold text-emerald-700">
+                        {selectedVariant.stock_quantity} in stock
+                      </span>
+                    </div>
                   ) : (
-                    <span className="font-semibold text-red-500">
+                    <span className="text-sm font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-100">
                       Out of Stock
                     </span>
                   )
                 ) : (
-                  <span className="text-slate-400">
-                    Please choose variations
-                  </span>
+                  <span className="text-sm text-slate-400 italic">Choose a variant</span>
                 )}
-              </span>
+              </div>
             )}
           </div>
 
-          <div className="flex gap-4">
-            <Button
-              size="lg"
-              variant="outline"
-              disabled={isOutOfStock}
-              className="flex-1 rounded-full border-2 font-semibold"
-              onClick={() => addItem(product, selectedVariant, quantity)}
-            >
-              <ShoppingCart className="mr-2 h-5 w-5" /> Add to Cart
-            </Button>
+          {/* ── CTA Buttons ── */}
+          <div className="flex flex-col gap-3">
             <Button
               size="lg"
               disabled={isOutOfStock}
-              className="flex-1 rounded-full bg-slate-900 font-semibold text-white hover:bg-slate-800"
+              className="h-14 w-full rounded-xl bg-slate-950 font-bold text-white text-[15px] hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl hover:scale-[1.01] disabled:opacity-40 disabled:scale-100"
               onClick={() => {
                 useCartStore.getState().clearCart()
                 addItem(product, selectedVariant, quantity)
                 navigate(`/${slug}/checkout`)
               }}
             >
+              <Zap className="mr-2 h-4 w-4" />
               Buy Now — ₹{pricing.totalFiat.toLocaleString("en-IN")}
             </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              disabled={isOutOfStock}
+              className="h-12 w-full rounded-xl border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-40"
+              onClick={() => addItem(product, selectedVariant, quantity)}
+            >
+              <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
+            </Button>
           </div>
+
+          {/* ── Security Note ── */}
+          <p className="flex items-center justify-center gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+            <ShieldCheck className="h-3.5 w-3.5" /> 256-bit Encrypted · Secure Transaction
+          </p>
         </div>
       </div>
 
-      <div className="mt-8 space-y-12 border-t pt-12 lg:col-span-2">
-        {product.long_description && (
-          <div>
-            <h3 className="mb-4 text-2xl font-bold text-slate-900">
-              Product Details
-            </h3>
-            <div
-              className="prose prose-slate prose-img:rounded-xl max-w-none text-slate-600"
-              dangerouslySetInnerHTML={{ __html: product.long_description }}
-            />
-          </div>
-        )}
+      {/* ══════════════════════════════════════════
+          BOTTOM SECTION
+      ══════════════════════════════════════════ */}
+      <div className="mt-20 space-y-16 border-t border-slate-100 pt-16">
 
-        <div className="grid grid-cols-1 gap-12 md:grid-cols-2">
-          {product.key_features && product.key_features.length > 0 && (
-            <div>
-              <h3 className="mb-6 text-xl font-bold text-slate-900">
-                Key Features
-              </h3>
-              <ul className="space-y-3">
-                {product.key_features.map((feature, idx) => (
-                  <li
-                    key={idx}
-                    className="flex items-start gap-3 text-slate-600"
-                  >
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
 
-          {product.specifications &&
-            Object.keys(product.specifications).length > 0 && (
+          {/* Long Description & Features */}
+          <div className="lg:col-span-7 space-y-12">
+            {product.long_description && (
               <div>
-                <h3 className="mb-6 text-xl font-bold text-slate-900">
-                  Specifications
-                </h3>
-                <div className="divide-y overflow-hidden rounded-xl border">
-                  {Object.entries(product.specifications).map(
-                    ([key, value]) => (
-                      <div
-                        key={key}
-                        className="flex grid-cols-3 bg-white p-4 text-sm transition-colors hover:bg-slate-50 sm:grid"
-                      >
-                        <span className="w-1/3 font-semibold text-slate-900 sm:w-auto">
-                          {key}
-                        </span>
-                        <span className="w-2/3 text-slate-600 sm:col-span-2 sm:w-auto">
-                          {value}
-                        </span>
+                <h3 className="mb-1 text-[10px] font-bold tracking-[0.2em] uppercase text-slate-400">Overview</h3>
+                <h2 className="mb-6 text-2xl font-bold tracking-tight text-slate-950">Asset Details</h2>
+                <div
+                  className="prose prose-slate prose-img:rounded-2xl prose-headings:font-bold prose-p:text-slate-500 prose-p:leading-relaxed max-w-none"
+                  dangerouslySetInnerHTML={{ __html: product.long_description }}
+                />
+              </div>
+            )}
+
+            {product.key_features && product.key_features.length > 0 && (
+              <div>
+                <h3 className="mb-1 text-[10px] font-bold tracking-[0.2em] uppercase text-slate-400">Highlights</h3>
+                <h2 className="mb-6 text-2xl font-bold tracking-tight text-slate-950">Key Features</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {product.key_features.map((feature, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-3 bg-white p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all"
+                    >
+                      <div className="h-6 w-6 rounded-full bg-slate-950 flex items-center justify-center shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
                       </div>
-                    )
-                  )}
+                      <span className="text-sm text-slate-700 leading-snug">{feature}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Specifications + Video */}
+          <div className="lg:col-span-5 space-y-10">
+            {product.specifications && Object.keys(product.specifications).length > 0 && (
+              <div>
+                <h3 className="mb-1 text-[10px] font-bold tracking-[0.2em] uppercase text-slate-400">Technical</h3>
+                <h2 className="mb-6 text-2xl font-bold tracking-tight text-slate-950">Specifications</h2>
+                <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                  {Object.entries(product.specifications).map(([key, value], i, arr) => (
+                    <div
+                      key={key}
+                      className={`flex justify-between items-start gap-4 px-6 py-4 text-sm ${i !== arr.length - 1 ? "border-b border-slate-50" : ""
+                        } ${i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
+                    >
+                      <span className="font-medium text-slate-500 shrink-0 w-2/5">{key}</span>
+                      <span className="font-semibold text-slate-900 text-right">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {embedUrl && (
+              <div>
+                <h3 className="mb-1 text-[10px] font-bold tracking-[0.2em] uppercase text-slate-400">Media</h3>
+                <h2 className="mb-6 text-2xl font-bold tracking-tight text-slate-950">Product Overview</h2>
+                <div className="aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm bg-slate-950">
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src={embedUrl}
+                    title="Product Video"
+                    frameBorder="0"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {embedUrl && (
-          <div>
-            <h3 className="mb-6 text-xl font-bold text-slate-900">
-              Product Video
-            </h3>
-            <div className="aspect-video w-full overflow-hidden rounded-2xl border shadow-sm">
-              <iframe
-                width="100%"
-                height="100%"
-                src={embedUrl}
-                title="Product Video"
-                frameBorder="0"
-                allowFullScreen
-                className="h-full w-full object-cover"
-              ></iframe>
+        {/* ── Digital Voucher Block ── */}
+        {product.type === "digital" && digitalData && (
+          <div
+            className="relative overflow-hidden rounded-3xl border p-8 md:p-12"
+            style={{
+              backgroundColor: digitalData.backgroundColor || "#f5f3ff",
+              borderColor: "transparent",
+            }}
+          >
+            {/* Decorative circles */}
+            <div className="pointer-events-none absolute -top-12 -right-12 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 -left-12 h-64 w-64 rounded-full bg-black/5 blur-3xl" />
+
+            <div className="relative z-10">
+              <div className="mb-8 flex items-start justify-between gap-4">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/60 backdrop-blur-sm px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-4">
+                    <Sparkles className="h-3 w-3" /> Digital Voucher
+                  </span>
+                  <h3 className="text-3xl font-bold tracking-tight text-slate-950">Voucher Details</h3>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+                {[
+                  digitalData.storeName && { label: "Store / Merchant", value: digitalData.storeName, icon: null },
+                  digitalData.couponCode && { label: "Coupon Format", value: digitalData.couponCode, mono: true },
+                  digitalData.validUntil && { label: "Valid Until", value: digitalData.validUntil, icon: Calendar },
+                  digitalData.phone && { label: "Phone", value: digitalData.phone },
+                  digitalData.address && {
+                    label: "Address",
+                    value: `${digitalData.address}${digitalData.pincode ? ` – ${digitalData.pincode}` : ""}`,
+                    icon: MapPin,
+                    wide: true,
+                  },
+                ]
+                  .filter(Boolean)
+                  .map((item: any, i) => (
+                    <div
+                      key={i}
+                      className={`bg-white/60 backdrop-blur-sm border border-white/50 rounded-2xl p-5 shadow-sm ${item.wide ? "sm:col-span-2 lg:col-span-2" : ""}`}
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1.5">
+                        {item.icon && <item.icon className="h-3 w-3" />}
+                        {item.label}
+                      </p>
+                      <p className={`font-semibold text-slate-900 ${item.mono ? "font-mono bg-white/70 px-2 py-0.5 rounded text-sm inline-block" : ""}`}>
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
+
+                {digitalData.website && (
+                  <div className="bg-white/60 backdrop-blur-sm border border-white/50 rounded-2xl p-5 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Website</p>
+                    <a href={digitalData.website} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 font-semibold text-blue-700 hover:text-blue-900 text-sm transition-colors">
+                      Visit Website <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {digitalData.aboutBrand && (
+                <div className="bg-white/50 backdrop-blur-sm border border-white/50 rounded-2xl p-6 mb-6">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3">About the Brand</p>
+                  <div className="prose prose-sm max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: digitalData.aboutBrand }} />
+                </div>
+              )}
+
+              {digitalData.redemptionLink && (
+                <a href={digitalData.redemptionLink} target="_blank" rel="noreferrer">
+                  <Button className="h-12 rounded-full bg-slate-950 px-8 font-bold text-white hover:bg-slate-800 shadow-md gap-2">
+                    Redemption Portal <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </a>
+              )}
             </div>
           </div>
         )}
-      </div>
 
-      {product.type === "digital" && digitalData && (
-        <div
-          className="rounded-2xl border p-6 shadow-sm transition-all md:p-8 lg:col-span-2"
-          style={{
-            backgroundColor: digitalData.backgroundColor || "#faf5ff",
-            borderColor: digitalData.backgroundColor
-              ? "transparent"
-              : "#f3e8ff",
-          }}
-        >
-          <h3 className="mb-6 text-2xl font-bold text-slate-900">
-            Voucher Details
-          </h3>
-          <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="space-y-3 text-sm text-slate-700">
-              {digitalData.storeName && (
-                <p>
-                  <span className="font-semibold text-slate-900">Store:</span>{" "}
-                  {digitalData.storeName}
-                </p>
-              )}
-              {digitalData.couponCode && (
-                <p>
-                  <span className="font-semibold text-slate-900">
-                    Code Format:
-                  </span>{" "}
-                  <span className="rounded border bg-white/60 px-1 py-0.5 font-mono text-xs font-bold">
-                    {digitalData.couponCode}
-                  </span>
-                </p>
-              )}
-              {digitalData.validUntil && (
-                <p>
-                  <span className="font-semibold text-slate-900">
-                    Validity:
-                  </span>{" "}
-                  {digitalData.validUntil}
-                </p>
-              )}
+        {/* ── Experience Block ── */}
+        {product.type === "experience" && expData && (
+          <div className="rounded-3xl overflow-hidden border border-amber-200/60 shadow-sm">
+
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-950 to-orange-950 px-8 py-10 md:px-12">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-200 mb-4">
+                Curated Journey
+              </span>
+              <h3 className="text-3xl font-bold tracking-tight text-white">Experience Itinerary</h3>
             </div>
-            <div className="space-y-3 text-sm text-slate-700">
-              {digitalData.phone && (
-                <p>
-                  <span className="font-semibold text-slate-900">Contact:</span>{" "}
-                  {digitalData.phone}
-                </p>
+
+            <div className="bg-gradient-to-br from-amber-50/80 to-orange-50/50 p-8 md:p-12 space-y-8">
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[
+                  expData.destination && { icon: MapPin, label: "Destination", value: expData.destination },
+                  expData.duration && { icon: Calendar, label: "Duration", value: expData.duration },
+                  expData.groupSize && { icon: Users, label: "Group Size", value: expData.groupSize },
+                  expData.departureDate && {
+                    icon: Calendar,
+                    label: "Departure",
+                    value: expData.departureDate,
+                    sub: expData.departureTime,
+                  },
+                ]
+                  .filter(Boolean)
+                  .map((item: any, i) => (
+                    <div key={i} className="bg-white rounded-2xl border border-orange-100 p-5 shadow-sm">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                        <item.icon className="h-3 w-3" /> {item.label}
+                      </p>
+                      <p className="font-bold text-orange-950 text-sm">{item.value}</p>
+                      {item.sub && <p className="text-xs text-slate-400 mt-0.5">@ {item.sub}</p>}
+                    </div>
+                  ))}
+              </div>
+
+              {/* Guest / Availability */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {expData.guest && (
+                  <div className="rounded-2xl border border-orange-200/50 bg-orange-100/40 p-6">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-800 mb-1">Total Capacity</p>
+                    <p className="text-xl font-bold text-orange-950">{expData.guest} Confirmed Seats</p>
+                  </div>
+                )}
+                {expData.availableDates && (
+                  <div className="rounded-2xl border border-orange-200/50 bg-orange-100/40 p-6">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-800 mb-1">Alternative Dates</p>
+                    <p className="font-semibold text-orange-950">{expData.availableDates}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Includes */}
+              {expData.includes_excludes && (
+                <div className="bg-white rounded-2xl border border-orange-100 p-8 shadow-sm">
+                  <h4 className="font-bold text-lg text-orange-950 mb-4">What's Included</h4>
+                  <div
+                    className="prose prose-sm max-w-none text-slate-600 marker:text-orange-400"
+                    dangerouslySetInnerHTML={{ __html: expData.includes_excludes }}
+                  />
+                </div>
               )}
-              {digitalData.website && (
-                <p>
-                  <span className="font-semibold text-slate-900">Website:</span>{" "}
-                  <a
-                    href={digitalData.website}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 underline hover:text-blue-800"
-                  >
-                    {digitalData.website}
-                  </a>
-                </p>
-              )}
-              {digitalData.address && (
-                <p>
-                  <span className="font-semibold text-slate-900">Address:</span>{" "}
-                  {digitalData.address}{" "}
-                  {digitalData.pincode ? `- ${digitalData.pincode}` : ""}
-                </p>
+
+              {expData.Availability && (
+                <a href={expData.Availability} target="_blank" rel="noreferrer">
+                  <Button className="h-12 rounded-full bg-orange-600 px-8 font-bold text-white hover:bg-orange-700 shadow-md gap-2">
+                    Check Availability <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </a>
               )}
             </div>
           </div>
+        )}
 
-          {digitalData.aboutBrand && (
+        {/* Terms */}
+        {product.terms_and_conditions && (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
+            <h4 className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 mb-3">Terms & Conditions</h4>
             <div
-              className="prose prose-sm max-w-none border-t border-slate-200 pt-4 text-slate-600"
-              dangerouslySetInnerHTML={{ __html: digitalData.aboutBrand }}
+              className="prose prose-sm max-w-none text-slate-500"
+              dangerouslySetInnerHTML={{ __html: product.terms_and_conditions }}
             />
-          )}
-
-          {digitalData.redemptionLink && (
-            <div className="mt-6">
-              <a
-                href={digitalData.redemptionLink}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Button className="rounded-full bg-slate-900 text-white hover:bg-slate-800">
-                  View Redemption Link →
-                </Button>
-              </a>
-            </div>
-          )}
-        </div>
-      )}
-
-      {product.type === "experience" && expData && (
-        <div className="rounded-2xl border border-orange-100 bg-orange-50/50 p-6 shadow-sm md:p-8 lg:col-span-2">
-          <h3 className="mb-6 text-2xl font-bold text-orange-900">
-            Experience Itinerary
-          </h3>
-          <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {expData.destination && (
-              <div className="rounded-xl border bg-white p-4 text-center shadow-sm">
-                <p className="mb-1 text-xs font-bold tracking-wider text-slate-400 uppercase">
-                  Destination
-                </p>
-                <p className="font-semibold text-orange-950">
-                  {expData.destination}
-                </p>
-              </div>
-            )}
-            {expData.duration && (
-              <div className="rounded-xl border bg-white p-4 text-center shadow-sm">
-                <p className="mb-1 text-xs font-bold tracking-wider text-slate-400 uppercase">
-                  Duration
-                </p>
-                <p className="font-semibold text-orange-950">
-                  {expData.duration}
-                </p>
-              </div>
-            )}
-            {expData.groupSize && (
-              <div className="rounded-xl border bg-white p-4 text-center shadow-sm">
-                <p className="mb-1 text-xs font-bold tracking-wider text-slate-400 uppercase">
-                  Group Size
-                </p>
-                <p className="font-semibold text-orange-950">
-                  {expData.groupSize}
-                </p>
-              </div>
-            )}
-            {expData.departureDate && (
-              <div className="rounded-xl border bg-white p-4 text-center shadow-sm">
-                <p className="mb-1 text-xs font-bold tracking-wider text-slate-400 uppercase">
-                  Departure
-                </p>
-                <p className="font-semibold text-orange-950">
-                  {expData.departureDate}{" "}
-                  {expData.departureTime ? `@ ${expData.departureTime}` : ""}
-                </p>
-              </div>
-            )}
           </div>
-
-          <div className="mb-6 grid grid-cols-1 gap-6 rounded-xl border bg-white p-4 text-sm shadow-sm md:grid-cols-2">
-            {expData.guest && (
-              <div>
-                <span className="mb-1 block font-bold text-slate-900">
-                  Max Allocation Capacity:
-                </span>
-                <p className="text-slate-600">
-                  {expData.guest} Total Seats Confirmed
-                </p>
-              </div>
-            )}
-            {expData.availableDates && (
-              <div>
-                <span className="mb-1 block font-bold text-slate-900">
-                  Alternative Schedule Openings:
-                </span>
-                <p className="text-slate-600">{expData.availableDates}</p>
-              </div>
-            )}
-          </div>
-
-          {expData.includes_excludes && (
-            <div className="border-t border-orange-200 pt-6">
-              <h4 className="mb-2 font-bold text-orange-950">
-                What's Included
-              </h4>
-              <div
-                className="prose prose-sm max-w-none text-slate-700"
-                dangerouslySetInnerHTML={{ __html: expData.includes_excludes }}
-              />
-            </div>
-          )}
-
-          {expData.Availability && (
-            <div className="mt-6 border-t border-orange-200 pt-4">
-              <a href={expData.Availability} target="_blank" rel="noreferrer">
-                <Button className="rounded-full bg-orange-600 text-white hover:bg-orange-700">
-                  Check Real-Time Availability →
-                </Button>
-              </a>
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
 
 function PDP_Skeleton() {
   return (
-    <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-      <Skeleton className="aspect-square w-full rounded-2xl" />
-      <div className="space-y-6">
-        <Skeleton className="h-6 w-24" />
-        <Skeleton className="h-12 w-3/4" />
-        <Skeleton className="h-24 w-full" />
+    <div className="max-w-7xl mx-auto py-6 animate-pulse">
+      <Skeleton className="h-4 w-48 rounded-full mb-8" />
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
+        <div className="lg:col-span-7 space-y-3">
+          <Skeleton className="aspect-[4/3.5] w-full rounded-2xl" />
+          <div className="flex gap-2">
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-[72px] w-[72px] rounded-xl" />)}
+          </div>
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </div>
+        <div className="lg:col-span-5 space-y-5 pt-2">
+          <Skeleton className="h-5 w-24 rounded" />
+          <Skeleton className="h-14 w-full rounded-xl" />
+          <Skeleton className="h-4 w-32 rounded" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-28 w-full rounded-2xl" />
+          <Skeleton className="h-14 w-full rounded-xl" />
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </div>
       </div>
     </div>
   )

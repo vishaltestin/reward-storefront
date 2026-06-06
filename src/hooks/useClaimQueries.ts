@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query"
-import axios from "axios"
 import type { ClaimAddressValues, StorefrontProduct } from "@/types/claim"
+import { api } from "@/lib/api"
 
 export const useValidateClaimTokenQuery = (
   slug: string,
@@ -9,8 +9,8 @@ export const useValidateClaimTokenQuery = (
   return useQuery({
     queryKey: ["claim-validate", slug, token],
     queryFn: async () => {
-      const { data } = await axios.get(
-        `/api/storefront/${slug}/claim/validate?token=${token}`
+      const { data } = await api.get(
+        `/${slug}/user/claim/validate?token=${token}`
       )
       return data
     },
@@ -30,8 +30,8 @@ interface ExecuteClaimPayload {
 export const useExecuteClaimMutation = (slug: string) => {
   return useMutation({
     mutationFn: async (payload: ExecuteClaimPayload) => {
-      const { data } = await axios.post(
-        `/api/storefront/${slug}/claim/execute`,
+      const { data } = await api.post(
+        `/${slug}/user/claim/execute`,
         payload
       )
       return data
@@ -46,8 +46,8 @@ export const useClaimCatalogQuery = (
   return useQuery({
     queryKey: ["claim-catalog", slug, allowedProductIds],
     queryFn: async () => {
-      const { data } = await axios.get<{ data: StorefrontProduct[] }>(
-        `/api/storefront/${slug}/claim/catalog`,
+      const { data } = await api.get<{ data: StorefrontProduct[] }>(
+        `/${slug}/user/claim/catalog`,
         {
           params: { allowed_ids: allowedProductIds },
         }
