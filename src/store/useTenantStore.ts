@@ -1,6 +1,9 @@
 import type { Category } from "@/types"
 import { create } from "zustand"
-
+export interface SocialLink {
+  platform: string;
+  url: string;
+}
 interface CompanyConfig {
   company_id: number
   name: string
@@ -10,7 +13,7 @@ interface CompanyConfig {
   points_name: string
   point_multiplier: number
   primary_color?: string
-  social_links: Record<string, string>
+  social_links: SocialLink[]
   terms_text: string | null
   privacy_text: string | null
 }

@@ -64,6 +64,34 @@ export interface CheckoutPayload {
   billing_address: Record<string, string> | null
 }
 
+
+/**
+ * Returned by POST /{slug}/checkout
+ *
+ * When fiat_amount_due > 0, the Razorpay fields are populated and the
+ * frontend must open the Razorpay modal before the order is confirmed.
+ *
+ * When fiat_amount_due === 0 (covered entirely by points/coupon), the
+ * order is already marked as paid and no gateway interaction is needed.
+ */
+export interface CheckoutResponse {
+  message: string
+  order_number: string
+  fiat_amount_due: number
+  points_burned: number
+  gateway_reference: string | null
+  status: string
+  razorpay_order_id?: string
+  razorpay_amount?: number 
+  razorpay_currency?: string
+  razorpay_key_id?: string
+  company_name?: string
+  user_name?: string
+  user_email?: string
+}
+
+// ─── Mutations ────────────────────────────────────────────────────────────────
+
 export const useValidateCouponMutation = (slug: string) => {
   return useMutation({
     mutationFn: async (payload: ValidateCouponPayload) => {
@@ -76,15 +104,6 @@ export const useValidateCouponMutation = (slug: string) => {
   })
 }
 
-export interface CheckoutResponse {
-  message: string
-  order_number: string
-  fiat_amount_due: number
-  points_burned: number
-  gateway_reference: string | null
-  status: string
-}
-
 export const useCheckoutMutation = (slug: string) => {
   return useMutation({
     mutationFn: async (payload: CheckoutPayload) => {
@@ -94,16 +113,49 @@ export const useCheckoutMutation = (slug: string) => {
   })
 }
 
-export { getApiErrorMessage }
-
+/**
+ * useVerifyPaymentMutation
+ *
+ * Sends the three Razorpay proof values to the backend for HMAC-SHA256
+ * signature verification. Only called inside the Razorpay modal's
+ * `handler` callback after the user completes payment.
+ */
 export const useVerifyPaymentMutation = (slug: string) => {
   return useMutation({
     mutationFn: async (payload: {
       order_number: string
-      payment_id: string
+      razorpay_order_id: string
+      razorpay_payment_id: string
+      razorpay_signature: string
     }) => {
       const { data } = await api.post(`/${slug}/checkout/verify`, payload)
       return data
     },
   })
 }
+
+/**
+ * useCancelOrderMutation
+ *
+ * Called when the user dismisses the Razorpay modal without completing
+ * payment. The backend will:
+ *   1. Refund any escrowed wallet points back to the user's balance.
+ *   2. Mark the order as 'cancelled' so it doesn't ghost as 'pending'.
+ *
+ * This is fire-and-forget from the UX perspective — the user is already
+ * back on the checkout page and we silently clean up server-side.
+ */
+export const useCancelOrderMutation = (slug: string) => {
+  return useMutation({
+    mutationFn: async (payload: { order_number: string }) => {
+      const { data } = await api.post(`/${slug}/checkout/cancel`, payload)
+      return data as {
+        message: string
+        order_number: string
+        points_refunded: number
+      }
+    },
+  })
+}
+
+export { getApiErrorMessage }

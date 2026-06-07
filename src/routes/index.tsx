@@ -11,6 +11,8 @@ import CategoryPage from "@/pages/CategoryPage"
 import CheckoutPage from "@/pages/CheckoutPage"
 import ProfilePage from "@/pages/ProfilePage"
 import ClaimPage from "@/pages/ClaimPage"
+import TermsPage from "@/pages/TermsPage"
+import PrivacyPage from "@/pages/PrivacyPage"
 // import OrdersPage from "@/pages/OrdersPage"
 
 export const router = createBrowserRouter(
@@ -39,6 +41,8 @@ export const router = createBrowserRouter(
         { path: "login", element: <LoginPage /> },
         { path: "product/:productSlug", element: <ProductPage /> },
         { path: "category/:categorySlug", element: <CategoryPage /> },
+        { path: "terms", element: <TermsPage /> },
+        { path: "privacy", element: <PrivacyPage /> },
         {
           element: <ProtectedRoute />,
           children: [

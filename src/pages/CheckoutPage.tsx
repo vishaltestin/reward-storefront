@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -13,7 +13,7 @@ import {
   AlertCircle,
   Sparkles,
   Lock,
-  ArrowRight
+  ArrowRight,
 } from "lucide-react"
 
 import { useCartStore } from "@/store/useCartStore"
@@ -27,11 +27,69 @@ import { Input } from "@/components/ui/input"
 import {
   createCheckoutSchema,
   type CheckoutFormValues,
+  type CheckoutResponse,
   useCheckoutMutation,
   useValidateCouponMutation,
+  useCancelOrderMutation,
   getApiErrorMessage,
   useVerifyPaymentMutation,
 } from "@/hooks/useCheckoutMutations"
+
+declare global {
+  interface Window {
+    Razorpay: new (options: RazorpayOptions) => RazorpayInstance
+  }
+}
+
+interface RazorpayOptions {
+  key: string
+  amount: number
+  currency: string
+  name: string
+  description: string
+  order_id: string
+  prefill?: { name?: string; email?: string }
+  handler: (response: RazorpaySuccessResponse) => void
+  modal?: { ondismiss?: () => void }
+  theme?: { color?: string }
+}
+
+interface RazorpayInstance {
+  open: () => void
+}
+
+interface RazorpaySuccessResponse {
+  razorpay_order_id: string
+  razorpay_payment_id: string
+  razorpay_signature: string
+}
+
+
+function loadRazorpayScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve()
+
+    const existing = document.querySelector(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
+    )
+    if (existing) {
+      existing.addEventListener("load", () => resolve())
+      existing.addEventListener("error", () =>
+        reject(new Error("Razorpay script failed to load"))
+      )
+      return
+    }
+
+    const script = document.createElement("script")
+    script.src = "https://checkout.razorpay.com/v1/checkout.js"
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () =>
+      reject(new Error("Failed to load Razorpay SDK. Check your connection."))
+    document.body.appendChild(script)
+  })
+}
+
 
 export default function CheckoutPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -43,12 +101,15 @@ export default function CheckoutPage() {
 
   const [walletBalance, setWalletBalance] = useState<number>(0)
   const [pointsToBurn, setPointsToBurn] = useState<number>(0)
-
   const [couponInput, setCouponInput] = useState("")
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string
     value: number
   } | null>(null)
+
+  // Track whether we're currently inside a payment attempt so the cancel
+  // handler doesn't fire on unrelated re-renders.
+  const pendingOrderRef = useRef<string | null>(null)
 
   const requiresShipping = items.some((i) => i.product.type === "physical")
 
@@ -56,11 +117,12 @@ export default function CheckoutPage() {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors },
   } = useForm<CheckoutFormValues>({
     resolver: zodResolver(createCheckoutSchema(requiresShipping)),
     defaultValues: {
-      use_shipping_for_billing: true,
+      use_shipping_for_billing: requiresShipping,
       shipping_address: {
         name: `${user?.first_name || ""} ${user?.last_name || ""}`.trim(),
         mobile: "",
@@ -85,11 +147,23 @@ export default function CheckoutPage() {
     name: "use_shipping_for_billing",
   })
 
+  const shippingAddress = useWatch({
+    control,
+    name: "shipping_address",
+  })
+
+  useEffect(() => {
+    if (useShippingForBilling && requiresShipping) {
+      setValue("billing_address", shippingAddress)
+    }
+  }, [useShippingForBilling, shippingAddress, setValue, requiresShipping])
+
   const {
     mutate: validateCoupon,
     isPending: isApplyingCoupon,
     error: couponError,
   } = useValidateCouponMutation(slug!)
+
   const {
     mutate: processCheckout,
     isPending: isProcessing,
@@ -98,6 +172,9 @@ export default function CheckoutPage() {
 
   const { mutate: verifyPayment, isPending: isVerifying } =
     useVerifyPaymentMutation(slug!)
+
+  // Silent fire-and-forget — we don't block the UI on the cancel response
+  const { mutate: cancelOrder } = useCancelOrderMutation(slug!)
 
   const isBusy = isProcessing || isVerifying || isApplyingCoupon
 
@@ -151,11 +228,7 @@ export default function CheckoutPage() {
   }, [items])
 
   const couponDiscountFiat = appliedCoupon ? appliedCoupon.value : 0
-  const totalAfterCoupon = Math.max(
-    0,
-    cartTotals.totalFiat - couponDiscountFiat
-  )
-
+  const totalAfterCoupon = Math.max(0, cartTotals.totalFiat - couponDiscountFiat)
   const maxPointsUsable = Math.min(
     walletBalance,
     Math.ceil(totalAfterCoupon * multiplier)
@@ -168,7 +241,6 @@ export default function CheckoutPage() {
     const cartProductIds = Array.from(
       new Set(items.map((item) => Number(item.product.id)))
     )
-
     validateCoupon(
       { code: couponInput, cart_product_ids: cartProductIds },
       {
@@ -180,6 +252,8 @@ export default function CheckoutPage() {
       }
     )
   }
+
+  // ── Main submit ─────────────────────────────────────────────────────────────
 
   const onSubmit = (formData: CheckoutFormValues) => {
     const payload = {
@@ -198,46 +272,109 @@ export default function CheckoutPage() {
         : (formData.billing_address as Record<string, string>),
     }
 
-    // PHASE 1: Initialize Checkout (Escrow & Math)
     processCheckout(payload, {
-      onSuccess: (data) => {
-        // SCENARIO A: 100% Free Order
+      onSuccess: async (data: CheckoutResponse) => {
+        // ── Free order: already paid server-side ─────────────────────────────
         if (data.status === "paid" || data.fiat_amount_due <= 0) {
           clearCart()
           navigate(`/${slug}/order-success/${data.order_number}`)
           return
         }
 
-        // SCENARIO B: Requires Fiat Payment
-        const userApprovedPayment = window.confirm(
-          `*** MOCK PAYMENT GATEWAY ***\n\nOrder Total: ₹${data.fiat_amount_due.toLocaleString("en-IN")}\n\nClick OK to simulate a successful credit card charge.\nClick Cancel to simulate a failed/abandoned payment.`
-        )
+        // ── Paid order: open Razorpay modal ──────────────────────────────────
 
-        if (userApprovedPayment) {
-          // PHASE 2: Verification & Fulfillment
-          const mockPaymentId = `pay_${Math.random().toString(36).substring(2, 15)}`
+        // Store order number so the dismiss handler can cancel it
+        pendingOrderRef.current = data.order_number
 
-          verifyPayment(
-            { order_number: data.order_number, payment_id: mockPaymentId },
+        try {
+          await loadRazorpayScript()
+        } catch {
+          // Script failed — cancel escrowed order and tell the user
+          cancelOrder(
+            { order_number: data.order_number },
             {
-              onSuccess: () => {
-                clearCart()
-                navigate(`/${slug}/order-success/${data.order_number}`)
-              },
-              onError: (error) => {
-                alert("Payment verification failed! Please contact support.")
-                console.error(error)
+              onSettled: () => {
+                pendingOrderRef.current = null
               },
             }
           )
-        } else {
           alert(
-            "Payment was cancelled. You can complete this payment later from your Orders dashboard."
+            "Failed to load the payment gateway. Please check your connection and try again."
           )
+          return
         }
+
+        const rzp = new window.Razorpay({
+          key: data.razorpay_key_id!,
+          amount: data.razorpay_amount!,
+          currency: data.razorpay_currency ?? "INR",
+          name: data.company_name ?? "Store",
+          description: `Order ${data.order_number}`,
+          order_id: data.razorpay_order_id!,
+          prefill: {
+            name: data.user_name,
+            email: data.user_email,
+          },
+          theme: {
+            color: "#0f172a", // slate-950 — matches your brand
+          },
+          modal: {
+            ondismiss: () => {
+              // ── Edge case fix ─────────────────────────────────────────────
+              // The user closed the modal without paying. The backend has
+              // already escrowed their points and created a 'pending' order.
+              // We cancel it here to refund the points and clean up.
+              const orderNumber = pendingOrderRef.current
+              if (!orderNumber) return
+
+              cancelOrder(
+                { order_number: orderNumber },
+                {
+                  onSettled: () => {
+                    pendingOrderRef.current = null
+                    // Refresh wallet balance to reflect refunded points
+                    api
+                      .get(`/${slug}/user/wallet`)
+                      .then(({ data: w }) => setWalletBalance(Number(w.balance)))
+                      .catch(() => {/* silent */ })
+                  },
+                }
+              )
+            },
+          },
+          handler: (response: RazorpaySuccessResponse) => {
+            // Payment completed — send proof to backend for verification
+            verifyPayment(
+              {
+                order_number: data.order_number,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              },
+              {
+                onSuccess: () => {
+                  pendingOrderRef.current = null
+                  clearCart()
+                  navigate(`/${slug}/order-success/${data.order_number}`)
+                },
+                onError: () => {
+                  pendingOrderRef.current = null
+                  alert(
+                    "Payment was received but verification failed. Please contact support with your order number: " +
+                    data.order_number
+                  )
+                },
+              }
+            )
+          },
+        })
+
+        rzp.open()
       },
     })
   }
+
+  // ── Address field renderer ──────────────────────────────────────────────────
 
   const renderAddressFields = (
     prefix: "shipping_address" | "billing_address"
@@ -338,6 +475,8 @@ export default function CheckoutPage() {
     </div>
   )
 
+  // ── Render ──────────────────────────────────────────────────────────────────
+
   return (
     <div className="max-w-7xl mx-auto py-8 font-sans">
       <div className="mb-8 space-y-2">
@@ -353,10 +492,10 @@ export default function CheckoutPage() {
         onSubmit={handleSubmit(onSubmit)}
         className="grid grid-cols-1 gap-8 lg:grid-cols-12 items-start"
       >
-        {/* LEFT COLUMN: Details & Forms */}
+        {/* ── Left column ──────────────────────────────────────────────────── */}
         <div className="space-y-6 lg:col-span-7">
 
-          {/* Order Summary Block */}
+          {/* Cart summary */}
           <section className="rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="flex items-center gap-2 mb-6">
               <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100">
@@ -377,11 +516,7 @@ export default function CheckoutPage() {
                 <div key={item.id} className="flex py-4 first:pt-0 last:pb-0 group">
                   <div className="h-16 w-16 shrink-0 rounded-xl border border-slate-100 bg-white p-1.5 flex items-center justify-center transition-all group-hover:border-slate-200">
                     <img
-                      src={
-                        item.variant?.image_url ||
-                        item.product.main_image_url ||
-                        ""
-                      }
+                      src={item.variant?.image_url || item.product.main_image_url || ""}
                       alt={item.product.name}
                       className="max-h-full max-w-full object-contain"
                     />
@@ -406,7 +541,7 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          {/* Shipping Address Block */}
+          {/* Shipping address */}
           {requiresShipping ? (
             <section className="rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-sm">
               <div className="flex items-center gap-2 mb-6">
@@ -429,13 +564,15 @@ export default function CheckoutPage() {
                   Digital Delivery Secured
                 </h2>
                 <p className="text-xs text-slate-500 leading-relaxed mt-1">
-                  All items in your cart are digital assets. Fulfillment details and instructions will be dispatched to <strong>{user?.email}</strong> immediately upon completion.
+                  All items in your cart are digital assets. Fulfillment details
+                  and instructions will be dispatched to{" "}
+                  <strong>{user?.email}</strong> immediately upon completion.
                 </p>
               </div>
             </section>
           )}
 
-          {/* Billing Address Block */}
+          {/* Billing address */}
           <section className="rounded-3xl border border-slate-100 bg-white p-6 sm:p-8 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
@@ -448,17 +585,23 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-700 p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors mb-6">
-              <div className="relative flex items-center">
-                <input
-                  type="checkbox"
-                  className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 checked:border-slate-900 checked:bg-slate-900 transition-all focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:ring-offset-2"
-                  {...register("use_shipping_for_billing")}
-                />
-                <CheckCircle2 className="pointer-events-none absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-              </div>
-              Use fulfillment address for billing
-            </label>
+            {requiresShipping && (
+              <label
+                htmlFor="use_shipping_for_billing"
+                className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-700 p-4 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors mb-6"
+              >
+                <div className="relative flex items-center">
+                  <input
+                    id="use_shipping_for_billing"
+                    type="checkbox"
+                    className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 checked:border-slate-900 checked:bg-slate-900 transition-all focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:ring-offset-2"
+                    {...register("use_shipping_for_billing")}
+                  />
+                  <CheckCircle2 className="pointer-events-none absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                </div>
+                Use fulfillment address for billing
+              </label>
+            )}
 
             {!useShippingForBilling && (
               <div className="animate-in fade-in slide-in-from-top-4 duration-300">
@@ -468,20 +611,20 @@ export default function CheckoutPage() {
           </section>
         </div>
 
-        {/* RIGHT COLUMN: Payment Summary */}
+        {/* ── Right column (sticky order summary) ──────────────────────────── */}
         <div className="lg:col-span-5">
           <div className="sticky top-24 space-y-6">
-
-            {/* Main Payment Widget */}
             <div className="rounded-3xl border border-slate-100 bg-white shadow-xl shadow-slate-200/20 overflow-hidden">
 
-              {/* Wallet Header Card (Dark Premium Segment) */}
+              {/* Wallet header */}
               <div className="bg-slate-950 p-6 sm:p-8 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_60%)]" />
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-1.5">
                     <Wallet className="h-4 w-4 text-slate-400" />
-                    <span className="text-[10px] font-semibold tracking-widest uppercase text-slate-400">Corporate Wallet</span>
+                    <span className="text-[10px] font-semibold tracking-widest uppercase text-slate-400">
+                      Corporate Wallet
+                    </span>
                   </div>
                   <p className="text-3xl font-heading font-semibold text-white">
                     {walletBalance.toLocaleString("en-IN")}{" "}
@@ -494,7 +637,7 @@ export default function CheckoutPage() {
 
               <div className="p-6 sm:p-8 space-y-7">
 
-                {/* Apply Points */}
+                {/* Points burn */}
                 <div className="space-y-2.5">
                   <label className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
                     Allocate Points
@@ -529,14 +672,15 @@ export default function CheckoutPage() {
                   </div>
                   {fiatDiscountFromPoints > 0 && (
                     <p className="text-[11px] font-medium text-emerald-600 flex items-center gap-1 mt-1">
-                      <Sparkles className="h-3 w-3" /> Offset applied: ₹{fiatDiscountFromPoints.toLocaleString("en-IN")}
+                      <Sparkles className="h-3 w-3" /> Offset applied: ₹
+                      {fiatDiscountFromPoints.toLocaleString("en-IN")}
                     </p>
                   )}
                 </div>
 
                 <div className="h-px bg-slate-100 w-full" />
 
-                {/* Promo Code */}
+                {/* Coupon */}
                 <div className="space-y-2.5">
                   <label className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
                     <Ticket className="h-3.5 w-3.5" /> Voucher Code
@@ -546,7 +690,8 @@ export default function CheckoutPage() {
                     <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-800">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        <span className="font-semibold">{appliedCoupon.code}</span> applied
+                        <span className="font-semibold">{appliedCoupon.code}</span>{" "}
+                        applied
                       </div>
                       <button
                         type="button"
@@ -570,7 +715,11 @@ export default function CheckoutPage() {
                         disabled={!couponInput || isApplyingCoupon}
                         className="absolute right-1 top-1 h-9 rounded-full bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 shadow-none"
                       >
-                        {isApplyingCoupon ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Apply"}
+                        {isApplyingCoupon ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          "Apply"
+                        )}
                       </Button>
                     </div>
                   )}
@@ -581,6 +730,7 @@ export default function CheckoutPage() {
                   )}
                 </div>
 
+                {/* Checkout error */}
                 {checkoutError && (
                   <div className="flex items-start gap-2 rounded-xl bg-rose-50 p-3 text-xs text-rose-700 border border-rose-100">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -588,7 +738,7 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Ledger / Totals */}
+                {/* Order totals */}
                 <div className="space-y-3 pt-2 text-sm text-slate-600">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500">Subtotal</span>
@@ -607,18 +757,23 @@ export default function CheckoutPage() {
                   {pointsToBurn > 0 && (
                     <div className="flex justify-between items-center font-medium text-indigo-600">
                       <span>Wallet Offset</span>
-                      <span>- ₹{fiatDiscountFromPoints.toLocaleString("en-IN")}</span>
+                      <span>
+                        - ₹{fiatDiscountFromPoints.toLocaleString("en-IN")}
+                      </span>
                     </div>
                   )}
 
                   <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-2">
-                    <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Total Due</span>
+                    <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                      Total Due
+                    </span>
                     <span className="text-2xl font-heading font-bold text-slate-900 tracking-tight">
                       ₹{finalFiatDue.toLocaleString("en-IN")}
                     </span>
                   </div>
                 </div>
 
+                {/* Submit */}
                 <Button
                   type="submit"
                   disabled={isBusy}
@@ -630,11 +785,13 @@ export default function CheckoutPage() {
                     </>
                   ) : finalFiatDue > 0 ? (
                     <>
-                      Pay ₹{finalFiatDue.toLocaleString("en-IN")} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                      Pay ₹{finalFiatDue.toLocaleString("en-IN")}{" "}
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </>
                   ) : (
                     <>
-                      Confirm Allocation (Free) <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                      Confirm Allocation (Free){" "}
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </>
                   )}
                 </Button>
