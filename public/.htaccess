@@ -1,0 +1,6 @@
+Options -MultiViews
+RewriteEngine On
+RewriteBase /marketplace/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ /marketplace/index.html [QSA,L]
