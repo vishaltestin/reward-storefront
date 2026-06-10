@@ -1,9 +1,8 @@
 import { useState, useMemo } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import {
   Minus,
   Plus,
-  ShoppingCart,
   Info,
   CheckCircle2,
   Check,
@@ -23,7 +22,6 @@ import { useProductDetail, type ProductVariant } from "@/hooks/useStorefront"
 import { useTenantStore } from "@/store/useTenantStore"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useCartStore } from "@/store/useCartStore"
 import {
   Carousel,
   CarouselContent,
@@ -32,6 +30,7 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel"
 import { Link } from "react-router-dom"
+import ProductCTA from "@/components/ProductCTA"
 
 interface DigitalTypeData {
   storeName?: string
@@ -71,9 +70,9 @@ const getYouTubeEmbedUrl = (url: string | null) => {
 
 export default function ProductPage() {
   const { slug, productSlug } = useParams<{ slug: string; productSlug: string }>()
-  const navigate = useNavigate()
+  // const navigate = useNavigate()
   const { config } = useTenantStore()
-  const addItem = useCartStore((state) => state.addItem)
+  // const addItem = useCartStore((state) => state.addItem)
 
   const { data: product, isLoading, isError } = useProductDetail(slug!, productSlug!)
 
@@ -222,8 +221,6 @@ export default function ProductPage() {
 
   return (
     <div className="max-w-7xl mx-auto py-6 font-sans">
-
-      {/* ── Breadcrumb ── */}
       <nav className="mb-8 flex items-center gap-2 text-[11px] font-semibold tracking-wider uppercase text-slate-400">
         <Link to={`/${slug}`} className="hover:text-slate-700 transition-colors flex items-center gap-1.5">
           <ArrowLeft className="h-3 w-3" /> Catalog
@@ -232,31 +229,21 @@ export default function ProductPage() {
         <span className="text-slate-600 line-clamp-1 max-w-xs">{product.name}</span>
       </nav>
 
-      {/* ══════════════════════════════════════════
-          HERO GRID — IMAGE + DETAILS
-      ══════════════════════════════════════════ */}
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 items-start">
 
-        {/* ── LEFT: Image Gallery ── */}
         <div className="lg:col-span-6 xl:col-span-7 space-y-3 lg:sticky lg:top-6">
-
-          {/* Main Image Stage */}
-          <div className="group relative aspect-[4/3.5] w-full overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/80 shadow-sm">
-
-            {/* Type Badge */}
+          <div className="group relative aspect-4/3.5 w-full overflow-hidden rounded-2xl bg-linear-to-br from-slate-50 to-slate-100 border border-slate-200/80 shadow-sm">
             <div className="absolute top-4 left-4 z-10">
               <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest backdrop-blur-md border ${product.type === "digital"
-                  ? "bg-violet-50/90 text-violet-700 border-violet-200/60"
-                  : product.type === "experience"
-                    ? "bg-amber-50/90 text-amber-700 border-amber-200/60"
-                    : "bg-white/90 text-slate-600 border-slate-200/60"
+                ? "bg-violet-50/90 text-violet-700 border-violet-200/60"
+                : product.type === "experience"
+                  ? "bg-amber-50/90 text-amber-700 border-amber-200/60"
+                  : "bg-white/90 text-slate-600 border-slate-200/60"
                 }`}>
                 <Sparkles className="h-3 w-3" />
                 {product.type}
               </span>
             </div>
-
-            {/* Discount badge */}
             {discountPct > 0 && (
               <div className="absolute top-4 right-4 z-10">
                 <div className="bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full tracking-wide">
@@ -294,17 +281,15 @@ export default function ProductPage() {
               </div>
             )}
           </div>
-
-          {/* Thumbnail Strip */}
           {allImages.length > 1 && (
             <div className="flex gap-2 overflow-x-auto pb-1">
               {allImages.map((img, idx) => (
                 <button
                   key={idx}
                   onClick={() => setActiveThumbnail(img)}
-                  className={`relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl bg-white border-2 transition-all duration-200 p-1.5 ${displayImage === img
-                      ? "border-slate-900 shadow-md scale-[1.03]"
-                      : "border-slate-200 hover:border-slate-400 opacity-60 hover:opacity-100"
+                  className={`relative h-18 w-18 shrink-0 overflow-hidden rounded-xl bg-white border-2 transition-all duration-200 p-1.5 ${displayImage === img
+                    ? "border-slate-900 shadow-md scale-[1.03]"
+                    : "border-slate-200 hover:border-slate-400 opacity-60 hover:opacity-100"
                     }`}
                 >
                   <img src={img} alt="" className="h-full w-full object-contain mix-blend-multiply" />
@@ -313,7 +298,6 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* Trust Strip */}
           <div className="grid grid-cols-3 gap-2 pt-1">
             {[
               { icon: ShieldCheck, label: "Secure Checkout" },
@@ -328,10 +312,8 @@ export default function ProductPage() {
           </div>
         </div>
 
-        {/* ── RIGHT: Product Info & Purchase ── */}
         <div className="lg:col-span-6 xl:col-span-5 flex flex-col gap-6">
 
-          {/* Brand + Name */}
           <div>
             {product.brand && (
               <p className="mb-2 text-[11px] font-black tracking-[0.2em] text-slate-400 uppercase">{product.brand}</p>
@@ -344,50 +326,52 @@ export default function ProductPage() {
             </p>
           </div>
 
-          {/* Short Description */}
           {product.short_description && (
             <p className="text-[15px] text-slate-500 leading-relaxed border-l-2 border-slate-200 pl-4">
               {product.short_description}
             </p>
           )}
 
-          {/* ── Pricing Card ── */}
-          <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-            <div className="bg-white px-6 py-5">
-              <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 mb-2">Allocation Value</p>
-              <div className="flex items-end gap-3 mb-1">
-                <span className="text-[2.5rem] font-black tracking-tight text-slate-950 leading-none">
-                  ₹{pricing.unitFiat.toLocaleString("en-IN")}
-                </span>
-                {pricing.mrpFiat > pricing.unitFiat && (
-                  <div className="mb-1 flex flex-col items-start">
-                    <span className="text-[13px] font-medium text-slate-400 line-through">
-                      ₹{pricing.mrpFiat.toLocaleString("en-IN")}
+
+          {product.selling_price > 0 &&
+            (
+
+              <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                <div className="bg-white px-6 py-5">
+                  <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 mb-2">Allocation Value</p>
+                  <div className="flex items-end gap-3 mb-1">
+                    <span className="text-[2.5rem] font-black tracking-tight text-slate-950 leading-none">
+                      ₹{pricing.unitFiat.toLocaleString("en-IN")}
                     </span>
-                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      Save {discountPct}%
-                    </span>
+                    {pricing.mrpFiat > pricing.unitFiat && (
+                      <div className="mb-1 flex flex-col items-start">
+                        <span className="text-[13px] font-medium text-slate-400 line-through">
+                          ₹{pricing.mrpFiat.toLocaleString("en-IN")}
+                        </span>
+                        <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                          Save {discountPct}%
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {pricing.isTierApplied && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                      <CheckCircle2 className="h-3 w-3" /> Volume Price Applied
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-slate-950 px-6 py-3.5 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">or redeem with</span>
+                  <span className="text-sm font-bold text-white bg-white/10 border border-white/10 px-4 py-1.5 rounded-full">
+                    {pricing.unitPoints.toLocaleString("en-IN")} {config?.points_name || "Points"}
+                  </span>
+                </div>
               </div>
 
-              {pricing.isTierApplied && (
-                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3" /> Volume Price Applied
-                </div>
-              )}
-            </div>
-
-            {/* Points Bar */}
-            <div className="bg-slate-950 px-6 py-3.5 flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">or redeem with</span>
-              <span className="text-sm font-bold text-white bg-white/10 border border-white/10 px-4 py-1.5 rounded-full">
-                {pricing.unitPoints.toLocaleString("en-IN")} {config?.points_name || "Points"}
-              </span>
-            </div>
-          </div>
-
-          {/* ── Tier Pricing ── */}
+            )
+          }
           {product.tier_prices && product.tier_prices.filter(
             (t) => t.variant_id == null || t.variant_id === selectedVariant?.id
           ).length > 0 && (
@@ -411,7 +395,6 @@ export default function ProductPage() {
               </div>
             )}
 
-          {/* ── Variant Selection ── */}
           {product.variants && product.variants.length > 0 && (
             <div className="space-y-5">
               {Object.entries(availableAttributes).map(([attrKey, values]) => (
@@ -426,9 +409,9 @@ export default function ProductPage() {
                         <button
                           key={val}
                           onClick={() => handleAttributeSelect(attrKey, val)}
-                          className={`relative min-w-[52px] rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 ${isSelected
-                              ? "bg-slate-950 text-white shadow-lg scale-[1.04] border border-slate-950"
-                              : "bg-white text-slate-700 border border-slate-200 hover:border-slate-400 hover:bg-slate-50"
+                          className={`relative min-w-13 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 ${isSelected
+                            ? "bg-slate-950 text-white shadow-lg scale-[1.04] border border-slate-950"
+                            : "bg-white text-slate-700 border border-slate-200 hover:border-slate-400 hover:bg-slate-50"
                             }`}
                         >
                           {isSelected && (
@@ -446,52 +429,56 @@ export default function ProductPage() {
             </div>
           )}
 
-          {/* ── Quantity + Stock ── */}
-          <div className="flex items-center justify-between py-1">
-            <div className="flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-              <button
-                onClick={() => handleQuantityChange(-1)}
-                disabled={quantity <= 1}
-                className="px-4 py-3 text-slate-500 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-30 transition-colors border-r border-slate-100"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <span className="w-14 text-center text-base font-bold text-slate-900 tabular-nums">
-                {quantity}
-              </span>
-              <button
-                onClick={() => handleQuantityChange(1)}
-                disabled={quantity >= maxStock}
-                className="px-4 py-3 text-slate-500 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-30 transition-colors border-l border-slate-100"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
 
-            {product.variants && product.variants.length > 0 && (
-              <div>
-                {selectedVariant ? (
-                  selectedVariant.stock_quantity > 0 ? (
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-sm font-semibold text-emerald-700">
-                        {selectedVariant.stock_quantity} in stock
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-sm font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-100">
-                      Out of Stock
-                    </span>
-                  )
-                ) : (
-                  <span className="text-sm text-slate-400 italic">Choose a variant</span>
+          {product.selling_price > 0 &&
+            (
+
+              <div className="flex items-center justify-between py-1">
+                <div className="flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                  <button
+                    onClick={() => handleQuantityChange(-1)}
+                    disabled={quantity <= 1}
+                    className="px-4 py-3 text-slate-500 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-30 transition-colors border-r border-slate-100"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="w-14 text-center text-base font-bold text-slate-900 tabular-nums">
+                    {quantity}
+                  </span>
+                  <button
+                    onClick={() => handleQuantityChange(1)}
+                    disabled={quantity >= maxStock}
+                    className="px-4 py-3 text-slate-500 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-30 transition-colors border-l border-slate-100"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {product.variants && product.variants.length > 0 && (
+                  <div>
+                    {selectedVariant ? (
+                      selectedVariant.stock_quantity > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-sm font-semibold text-emerald-700">
+                            {selectedVariant.stock_quantity} in stock
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-100">
+                          Out of Stock
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-sm text-slate-400 italic">Choose a variant</span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* ── CTA Buttons ── */}
-          <div className="flex flex-col gap-3">
+            )
+          }
+          {/* <div className="flex flex-col gap-3">
             <Button
               size="lg"
               disabled={isOutOfStock}
@@ -514,23 +501,23 @@ export default function ProductPage() {
             >
               <ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart
             </Button>
-          </div>
+          </div> */}
+          <ProductCTA
+            product={product}
+            selectedVariant={selectedVariant}
+            quantity={quantity}
+            pricing={pricing}
+            isOutOfStock={isOutOfStock}
+          />
 
-          {/* ── Security Note ── */}
           <p className="flex items-center justify-center gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
             <ShieldCheck className="h-3.5 w-3.5" /> 256-bit Encrypted · Secure Transaction
           </p>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          BOTTOM SECTION
-      ══════════════════════════════════════════ */}
       <div className="mt-20 space-y-16 border-t border-slate-100 pt-16">
-
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-
-          {/* Long Description & Features */}
           <div className="lg:col-span-7 space-y-12">
             {product.long_description && (
               <div>
@@ -564,7 +551,6 @@ export default function ProductPage() {
             )}
           </div>
 
-          {/* Specifications + Video */}
           <div className="lg:col-span-5 space-y-10">
             {product.specifications && Object.keys(product.specifications).length > 0 && (
               <div>
@@ -603,8 +589,6 @@ export default function ProductPage() {
             )}
           </div>
         </div>
-
-        {/* ── Digital Voucher Block ── */}
         {product.type === "digital" && digitalData && (
           <div
             className="relative overflow-hidden rounded-3xl border p-8 md:p-12"
@@ -613,7 +597,6 @@ export default function ProductPage() {
               borderColor: "transparent",
             }}
           >
-            {/* Decorative circles */}
             <div className="pointer-events-none absolute -top-12 -right-12 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-16 -left-12 h-64 w-64 rounded-full bg-black/5 blur-3xl" />
 
@@ -684,22 +667,16 @@ export default function ProductPage() {
             </div>
           </div>
         )}
-
-        {/* ── Experience Block ── */}
         {product.type === "experience" && expData && (
           <div className="rounded-3xl overflow-hidden border border-amber-200/60 shadow-sm">
-
-            {/* Header */}
-            <div className="bg-gradient-to-r from-amber-950 to-orange-950 px-8 py-10 md:px-12">
+            <div className="bg-linear-to-r from-amber-950 to-orange-950 px-8 py-10 md:px-12">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-200 mb-4">
                 Curated Journey
               </span>
               <h3 className="text-3xl font-bold tracking-tight text-white">Experience Itinerary</h3>
             </div>
 
-            <div className="bg-gradient-to-br from-amber-50/80 to-orange-50/50 p-8 md:p-12 space-y-8">
-
-              {/* Stats Grid */}
+            <div className="bg-linear-to-br from-amber-50/80 to-orange-50/50 p-8 md:p-12 space-y-8">
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[
                   expData.destination && { icon: MapPin, label: "Destination", value: expData.destination },
@@ -723,8 +700,6 @@ export default function ProductPage() {
                     </div>
                   ))}
               </div>
-
-              {/* Guest / Availability */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {expData.guest && (
                   <div className="rounded-2xl border border-orange-200/50 bg-orange-100/40 p-6">
@@ -739,8 +714,6 @@ export default function ProductPage() {
                   </div>
                 )}
               </div>
-
-              {/* Includes */}
               {expData.includes_excludes && (
                 <div className="bg-white rounded-2xl border border-orange-100 p-8 shadow-sm">
                   <h4 className="font-bold text-lg text-orange-950 mb-4">What's Included</h4>
@@ -761,8 +734,6 @@ export default function ProductPage() {
             </div>
           </div>
         )}
-
-        {/* Terms */}
         {product.terms_and_conditions && (
           <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
             <h4 className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 mb-3">Terms & Conditions</h4>
@@ -783,9 +754,9 @@ function PDP_Skeleton() {
       <Skeleton className="h-4 w-48 rounded-full mb-8" />
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
         <div className="lg:col-span-7 space-y-3">
-          <Skeleton className="aspect-[4/3.5] w-full rounded-2xl" />
+          <Skeleton className="aspect-4/3.5 w-full rounded-2xl" />
           <div className="flex gap-2">
-            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-[72px] w-[72px] rounded-xl" />)}
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-18 w-18 rounded-xl" />)}
           </div>
           <Skeleton className="h-12 w-full rounded-xl" />
         </div>
