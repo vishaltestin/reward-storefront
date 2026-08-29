@@ -19,6 +19,11 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { useProductDetail, type ProductVariant } from "@/hooks/useStorefront"
+import {
+  normalizeVariantAttributes,
+  isColorKey,
+  isCssColor,
+} from "@/lib/variants"
 import { useTenantStore } from "@/store/useTenantStore"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -70,6 +75,13 @@ const getYouTubeEmbedUrl = (url: string | null) => {
 
 export default function ProductPage() {
   const { slug, productSlug } = useParams<{ slug: string; productSlug: string }>()
+
+  // Remount (resetting all selection state) whenever the product being viewed changes.
+  return <ProductPageContent key={`${slug}/${productSlug}`} />
+}
+
+function ProductPageContent() {
+  const { slug, productSlug } = useParams<{ slug: string; productSlug: string }>()
   // const navigate = useNavigate()
   const { config } = useTenantStore()
   // const addItem = useCartStore((state) => state.addItem)
@@ -80,48 +92,83 @@ export default function ProductPage() {
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({})
   const [activeThumbnail, setActiveThumbnail] = useState<string | null>(null)
 
-  const activeAttributes = useMemo(() => {
-    if (Object.keys(selectedAttributes).length > 0) return selectedAttributes
-    return product?.variants?.[0]?.attributes || {}
-  }, [selectedAttributes, product])
+  // Legacy data may contain the same attribute spelled differently
+  // ("size", "Size", " SIZE "). Normalize every variant so those collapse
+  // into one option group instead of rendering duplicate rows.
+  const normalizedVariants = useMemo<ProductVariant[]>(() => {
+    return (product?.variants ?? []).map((v) => ({
+      ...v,
+      attributes: normalizeVariantAttributes(v.attributes),
+    }))
+  }, [product])
 
-  const selectedVariant = useMemo<ProductVariant | null>(() => {
-    if (!product?.variants?.length) return null
-    return (
-      product.variants.find((v) =>
-        Object.entries(activeAttributes).every(([key, value]) => v.attributes[key] === value)
-      ) || null
-    )
-  }, [product, activeAttributes])
-
-  const displayImage = activeThumbnail || selectedVariant?.image_url || product?.main_image_url || null
-
-  const allImages = useMemo(() => {
-    if (!product) return []
-    const images = new Set<string>()
-    if (displayImage) images.add(displayImage)
-    if (product.main_image_url) images.add(product.main_image_url)
-    if (product.gallery_images) {
-      product.gallery_images.forEach((img) => images.add(img as string))
-    }
-    return Array.from(images).filter(Boolean)
-  }, [displayImage, product])
-
-  const availableAttributes = useMemo<Record<string, string[]>>(() => {
-    if (!product?.variants?.length) return {}
-    const attrMap: Record<string, Set<string>> = {}
-    product.variants.forEach((v) => {
-      Object.entries(v.attributes).forEach(([key, val]) => {
-        if (!attrMap[key]) attrMap[key] = new Set<string>()
-        attrMap[key].add(val)
+  // Attribute option groups across all variants,
+  // e.g. { Size: ["S", "M"], Color: ["#ff0000", "Navy Blue"] }.
+  const attributeGroups = useMemo<Record<string, string[]>>(() => {
+    const groups: Record<string, string[]> = {}
+    normalizedVariants.forEach((v) => {
+      Object.entries(v.attributes).forEach(([key, value]) => {
+        if (!groups[key]) groups[key] = []
+        if (!groups[key].includes(value)) groups[key].push(value)
       })
     })
-    const formatted: Record<string, string[]> = {}
-    Object.keys(attrMap).forEach((key) => {
-      formatted[key] = Array.from(attrMap[key])
+    return groups
+  }, [normalizedVariants])
+
+  const attributeKeyCount = Object.keys(attributeGroups).length
+
+  // A variant only resolves once the user picked a value for every attribute
+  // group. Nothing is pre-selected — until then the page shows the plain
+  // product defaults (main image, base price, global SKU).
+  const selectedVariant = useMemo<ProductVariant | null>(() => {
+    if (!normalizedVariants.length || attributeKeyCount === 0) return null
+    const selectedKeys = Object.keys(selectedAttributes)
+    if (selectedKeys.length < attributeKeyCount) return null
+
+    return (
+      normalizedVariants.find((v) =>
+        selectedKeys.every((key) => v.attributes[key] === selectedAttributes[key])
+      ) || null
+    )
+  }, [normalizedVariants, attributeKeyCount, selectedAttributes])
+
+  const matchesSelection = (variant: ProductVariant, selection: Record<string, string>) =>
+    Object.entries(selection).every(([key, value]) => variant.attributes[key] === value)
+
+  // An option is clickable only if at least one variant matches
+  // the current selection plus that option — no more jumping to
+  // whatever variant happens to be first.
+  const isOptionAvailable = (key: string, value: string) =>
+    normalizedVariants.some((v) => matchesSelection(v, { ...selectedAttributes, [key]: value }))
+
+  // Gallery: resolved variant images first (main + its own gallery),
+  // then the product-level images. Until a variant is resolved the
+  // product defaults are shown.
+  const galleryImages = useMemo(() => {
+    if (!product) return []
+    const images: (string | null | undefined)[] = []
+    if (selectedVariant) {
+      images.push(selectedVariant.image_url)
+      selectedVariant.gallery_images?.forEach((img) => images.push(img))
+    }
+    images.push(product.main_image_url)
+    product.gallery_images?.forEach((img) => images.push(img))
+
+    const unique = new Set<string>()
+    images.forEach((img) => {
+      if (img) unique.add(img)
     })
-    return formatted
-  }, [product])
+    return Array.from(unique)
+  }, [product, selectedVariant])
+
+  const displayImage = activeThumbnail || galleryImages[0] || null
+
+  const allImages = useMemo(() => {
+    const unique = new Set<string>()
+    if (displayImage) unique.add(displayImage)
+    galleryImages.forEach((img) => unique.add(img))
+    return Array.from(unique)
+  }, [displayImage, galleryImages])
 
   const pricing = useMemo(() => {
     if (!product) return { unitFiat: 0, unitPoints: 0, mrpFiat: 0, totalFiat: 0, isTierApplied: false }
@@ -155,37 +202,12 @@ export default function ProductPage() {
     }
   }, [product, selectedVariant, quantity])
 
-  const maxStock = product?.variants?.length
-    ? selectedVariant ? selectedVariant.stock_quantity : 9999
-    : 9999
+  const maxStock = selectedVariant ? selectedVariant.stock_quantity : 9999
 
   const handleAttributeSelect = (key: string, value: string) => {
-    const proposedAttributes = { ...activeAttributes, [key]: value }
-    const exactMatchExists = product?.variants.some((v) =>
-      Object.entries(proposedAttributes).every(([k, val]) => v.attributes[k] === val)
-    )
-
-    let finalVariantMatch = null
-
-    if (exactMatchExists) {
-      setSelectedAttributes(proposedAttributes)
-      finalVariantMatch = product?.variants.find((v) =>
-        Object.entries(proposedAttributes).every(([k, val]) => v.attributes[k] === val)
-      )
-    } else {
-      const fallbackVariant = product?.variants.find((v) => v.attributes[key] === value)
-      if (fallbackVariant) {
-        setSelectedAttributes(fallbackVariant.attributes)
-        finalVariantMatch = fallbackVariant
-      }
-    }
-
-    if (finalVariantMatch && finalVariantMatch.image_url) {
-      setActiveThumbnail(finalVariantMatch.image_url)
-    } else {
-      setActiveThumbnail(null)
-    }
-
+    setSelectedAttributes((prev) => ({ ...prev, [key]: value }))
+    // Let the gallery fall back to the first image of the new selection.
+    setActiveThumbnail(null)
     setQuantity(1)
   }
 
@@ -253,7 +275,7 @@ export default function ProductPage() {
             )}
 
             {allImages.length > 0 ? (
-              <Carousel className="w-full h-full" opts={{ loop: true }}>
+              <Carousel key={selectedVariant?.id ?? "base"} className="w-full h-full" opts={{ loop: true }}>
                 <CarouselContent className="h-full">
                   {allImages.map((img, idx) => (
                     <CarouselItem key={idx} className="h-full">
@@ -395,37 +417,85 @@ export default function ProductPage() {
               </div>
             )}
 
-          {product.variants && product.variants.length > 0 && (
+          {normalizedVariants.length > 0 && attributeKeyCount > 0 && (
             <div className="space-y-5">
-              {Object.entries(availableAttributes).map(([attrKey, values]) => (
-                <div key={attrKey}>
-                  <h4 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-500">
-                    {attrKey}
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {values.map((val) => {
-                      const isSelected = activeAttributes[attrKey] === val
-                      return (
-                        <button
-                          key={val}
-                          onClick={() => handleAttributeSelect(attrKey, val)}
-                          className={`relative min-w-13 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 ${isSelected
-                            ? "bg-slate-950 text-white shadow-lg scale-[1.04] border border-slate-950"
-                            : "bg-white text-slate-700 border border-slate-200 hover:border-slate-400 hover:bg-slate-50"
-                            }`}
-                        >
-                          {isSelected && (
-                            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-500 flex items-center justify-center">
-                              <Check className="h-2 w-2 text-white" />
-                            </span>
-                          )}
-                          {val}
-                        </button>
-                      )
-                    })}
+              {Object.entries(attributeGroups).map(([attrKey, values]) => {
+                const colorGroup = isColorKey(attrKey)
+                const selectedValue = selectedAttributes[attrKey]
+
+                return (
+                  <div key={attrKey}>
+                    <h4 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                      {attrKey}
+                      {selectedValue && (
+                        <span className="ml-2 normal-case tracking-normal font-semibold text-slate-900">
+                          — {selectedValue}
+                        </span>
+                      )}
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {values.map((val) => {
+                        const isSelected = selectedValue === val
+                        const available = isOptionAvailable(attrKey, val)
+
+                        if (colorGroup) {
+                          const swatchable = isCssColor(val)
+                          return (
+                            <button
+                              key={val}
+                              type="button"
+                              disabled={!available}
+                              onClick={() => handleAttributeSelect(attrKey, val)}
+                              title={val}
+                              aria-label={`${attrKey}: ${val}`}
+                              className={`relative flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-150 ${isSelected
+                                ? "border-slate-950 ring-2 ring-slate-950 ring-offset-2 scale-105"
+                                : "border-slate-200 hover:border-slate-400"
+                                } ${!available ? "cursor-not-allowed opacity-35" : ""}`}
+                            >
+                              <span
+                                className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-black/10 shadow-inner ${!swatchable ? "bg-slate-100" : ""}`}
+                                style={swatchable ? { backgroundColor: val } : undefined}
+                              >
+                                {!swatchable && (
+                                  <span className="text-[9px] font-black uppercase text-slate-500">
+                                    {val.slice(0, 2)}
+                                  </span>
+                                )}
+                              </span>
+                              {isSelected && (
+                                <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                  <Check className="h-2 w-2 text-white" />
+                                </span>
+                              )}
+                            </button>
+                          )
+                        }
+
+                        return (
+                          <button
+                            key={val}
+                            type="button"
+                            disabled={!available}
+                            onClick={() => handleAttributeSelect(attrKey, val)}
+                            className={`relative min-w-13 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 ${isSelected
+                              ? "bg-slate-950 text-white shadow-lg scale-[1.04] border border-slate-950"
+                              : "bg-white text-slate-700 border border-slate-200 hover:border-slate-400 hover:bg-slate-50"
+                              } ${!available ? "cursor-not-allowed opacity-40 line-through hover:border-slate-200 hover:bg-white" : ""}`}
+                          >
+                            {isSelected && (
+                              <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                <Check className="h-2 w-2 text-white" />
+                              </span>
+                            )}
+                            {val}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 

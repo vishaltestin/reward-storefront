@@ -7,6 +7,7 @@ export interface ProductVariant {
   name: string
   sku: string
   image_url: string | null
+  gallery_images?: string[] | null
   mrp: number
   selling_price: number
   points_equivalent: number
