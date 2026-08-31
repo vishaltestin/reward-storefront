@@ -138,7 +138,57 @@ export const useUserOrders = (slug: string) => {
   })
 }
 
+export interface OrderDetailItem {
+  product_name: string
+  quantity: number
+  unit_price: number
+  total_price: number
+  delivery_status: string | null
+}
 
+export interface OrderDetailVoucher {
+  code: string
+  pin: string | null
+  issued_at: string | null
+  expires_at: string | null
+}
+
+/** Full detail payload of GET /{slug}/user/orders/{orderNumber} */
+export interface OrderDetail {
+  order_number: string
+  status: string
+  created_at: string
+  total_amount: number
+  gst_total: number
+  discount_amount: number
+  coupon_code: string | null
+  points_used: number
+  fiat_paid: number
+  payment_gateway_reference: string | null
+  shipping_name: string | null
+  shipping_mobile: string | null
+  shipping_address_line_1: string | null
+  shipping_city: string | null
+  shipping_state: string | null
+  shipping_pincode: string | null
+  logistics_provider: string | null
+  tracking_number: string | null
+  billing_address_snapshot: string | null
+  items: OrderDetailItem[]
+  vouchers: OrderDetailVoucher[]
+}
+
+export const useOrderDetail = (slug: string, orderNumber: string) => {
+  return useQuery({
+    queryKey: ["order", slug, orderNumber],
+    queryFn: async () => {
+      const { data } = await api.get(`/${slug}/user/orders/${orderNumber}`)
+      return data.data as OrderDetail
+    },
+    enabled: !!slug && !!orderNumber,
+    retry: false,
+  })
+}
 
 export interface FilterParams {
   q?: string
@@ -149,7 +199,7 @@ export interface FilterParams {
   per_page?: number
   page?: number
 }
- 
+
 export interface PaginatedProducts {
   data: ProductSummary[]
   current_page: number
@@ -159,15 +209,19 @@ export interface PaginatedProducts {
   from: number
   to: number
 }
- 
+
 export const useFilterProducts = (slug: string, params: FilterParams) => {
   return useQuery<PaginatedProducts>({
     queryKey: ["products-filter", slug, params],
     queryFn: async () => {
       const cleanParams = Object.fromEntries(
-        Object.entries(params).filter(([, v]) => v !== undefined && v !== "" && v !== null)
+        Object.entries(params).filter(
+          ([, v]) => v !== undefined && v !== "" && v !== null
+        )
       )
-      const { data } = await api.get(`/${slug}/products/filter`, { params: cleanParams })
+      const { data } = await api.get(`/${slug}/products/filter`, {
+        params: cleanParams,
+      })
       return data as PaginatedProducts
     },
     enabled: !!slug,

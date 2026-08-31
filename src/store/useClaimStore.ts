@@ -1,5 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+
+import { tenantStorageKey } from "@/lib/tenant"
 import type { ClaimRecipient, StorefrontProduct } from "@/types/claim"
 
 interface ClaimState {
@@ -54,6 +56,6 @@ export const useClaimStore = create<ClaimState>()(
           isCheckoutModalOpen: false,
         }),
     }),
-    { name: "storefront-claim-storage" }
+    { name: tenantStorageKey("storefront-claim") }
   )
 )

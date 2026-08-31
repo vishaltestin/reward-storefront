@@ -30,7 +30,8 @@ export function StorefrontRewardSelector({
 
   return (
     <div
-      className="px-6 py-16"
+      id="rewards"
+      className="scroll-mt-4 px-6 py-16"
       style={{ backgroundColor: styles.backgroundColor }}
     >
       <div className="mx-auto max-w-6xl text-center">
@@ -62,13 +63,20 @@ export function StorefrontRewardSelector({
 
                   <div className="mt-auto space-y-1 pt-4 text-sm">
                     <div className="flex justify-between text-slate-500">
-                      <span>Price:</span> <span>₹{product.selling_price}</span>
+                      <span>Price:</span>{" "}
+                      <span>
+                        ₹{Number(product.selling_price).toLocaleString("en-IN")}
+                      </span>
                     </div>
                     <div className="flex justify-between border-b pb-2 font-medium text-green-600">
-                      <span>Reward:</span> <span>-₹{rewardValue}</span>
+                      <span>Reward:</span>{" "}
+                      <span>
+                        -₹{Number(rewardValue).toLocaleString("en-IN")}
+                      </span>
                     </div>
                     <div className="flex justify-between pt-2 text-lg font-bold">
-                      <span>You Pay:</span> <span>₹{fiatDue}</span>
+                      <span>You Pay:</span>{" "}
+                      <span>₹{Number(fiatDue).toLocaleString("en-IN")}</span>
                     </div>
                   </div>
 
@@ -77,7 +85,7 @@ export function StorefrontRewardSelector({
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 py-3 font-medium text-white hover:bg-slate-800"
                   >
                     {fiatDue > 0
-                      ? `Pay ₹${fiatDue} to Claim`
+                      ? `Pay ₹${Number(fiatDue).toLocaleString("en-IN")} to Claim`
                       : "Claim for Free"}{" "}
                     <ArrowRight className="h-4 w-4" />
                   </button>

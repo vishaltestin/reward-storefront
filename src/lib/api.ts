@@ -26,11 +26,28 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Endpoints where 401/403 are expected BUSINESS responses, not session
+// expiry. The login endpoint answers 401 for wrong credentials and 403 for
+// suspended / tenant-mismatch accounts — those errors must render inline on
+// the login form. Without this guard the interceptor below "handled" them by
+// hard-navigating to the login page, so the page appeared to simply refresh
+// and the actual error message never showed.
+const INLINE_AUTH_ENDPOINTS = ["/auth/login"]
+
 api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     if (isAxiosError(error)) {
-      if (error.response?.status === 401 || error.response?.status === 403) {
+      const status = error.response?.status
+      const requestUrl = error.config?.url ?? ""
+
+      const isInlineAuthEndpoint = INLINE_AUTH_ENDPOINTS.some((path) =>
+        requestUrl.includes(path)
+      )
+
+      // Session expiry / invalid token on any other endpoint: drop the
+      // stale session and return to the login page (unchanged behavior).
+      if ((status === 401 || status === 403) && !isInlineAuthEndpoint) {
         useAuthStore.getState().logout()
         const match = window.location.pathname.match(/\/marketplace\/([^/]+)/)
         const slug = match ? match[1] : ""

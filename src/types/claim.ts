@@ -1,4 +1,9 @@
 import { z } from "zod"
+import type {
+  HeroBannerBlock,
+  VideoSectionBlock,
+  CallToActionBlock,
+} from "./builder"
 
 export const claimAddressSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -62,4 +67,10 @@ export interface RewardSelectorBlock extends BaseBlock {
   }
 }
 
-export type PageBlock = RewardSelectorBlock
+// The claim page renders the full builder-dialect block union (same blocks
+// the landing editor produces), not just the reward selector.
+export type PageBlock =
+  | RewardSelectorBlock
+  | HeroBannerBlock
+  | VideoSectionBlock
+  | CallToActionBlock

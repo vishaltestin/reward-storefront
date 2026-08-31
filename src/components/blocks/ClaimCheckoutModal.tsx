@@ -1,16 +1,24 @@
 import { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { X, Loader2, Gift } from "lucide-react"
+import { toast } from "sonner"
 
 import { useClaimStore } from "@/store/useClaimStore"
 import { claimAddressSchema, type ClaimAddressValues } from "@/types/claim"
-import { useExecuteClaimMutation } from "@/hooks/useClaimQueries"
+import {
+  useExecuteClaimMutation,
+  useVerifyClaimMutation,
+} from "@/hooks/useClaimQueries"
+import { loadRazorpayScript } from "@/lib/razorpay"
+import { getErrorMessage } from "@/lib/api"
 
 export function ClaimCheckoutModal() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const {
     token,
@@ -19,11 +27,15 @@ export function ClaimCheckoutModal() {
     setCheckoutModalOpen,
     clearClaimContext,
   } = useClaimStore()
-  const { mutate: executeClaim, isPending } = useExecuteClaimMutation(slug!)
+  const { mutateAsync: executeClaim, isPending } = useExecuteClaimMutation(
+    slug!
+  )
+  const { mutateAsync: verifyClaim } = useVerifyClaimMutation(slug!)
 
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
     selectedProduct?.variants?.[0]?.id || null
   )
+  const [isPaying, setIsPaying] = useState(false)
 
   const {
     register,
@@ -32,7 +44,6 @@ export function ClaimCheckoutModal() {
   } = useForm<ClaimAddressValues>({
     resolver: zodResolver(claimAddressSchema),
   })
-  const generatePaymentRef = useState(() => () => `pay_ref_${Date.now()}`)[0]
 
   if (!selectedProduct) return null
 
@@ -47,32 +58,127 @@ export function ClaimCheckoutModal() {
   const fiatDue = Math.max(0, activePrice - rewardValue)
   const remainingReward = Math.max(0, rewardValue - activePrice)
 
+  const finishClaim = (orderNumber: string) => {
+    clearClaimContext()
+    // Refresh the profile order list, then land the user straight on the
+    // new order's detail page (items, address, tracking) instead of a bare
+    // profile page — immediate confirmation of what was just placed.
+    queryClient.invalidateQueries({ queryKey: ["orders", slug] })
+    toast.success(`Order placed: ${orderNumber}`)
+    navigate(`/${slug}/orders/${orderNumber}`)
+  }
+
   const onSubmit = async (formData: ClaimAddressValues) => {
-    if (!token || !selectedVariantId) return
+    if (!token || !selectedProduct) return
+    // Variant products need an explicit choice; single-SKU products are
+    // claimed with product_id alone (no variant exists to choose).
+    if (selectedProduct.has_variants && !selectedVariantId) return
 
-    let paymentReference = null
-    if (fiatDue > 0) {
-      const userApproved = window.confirm(`Pay ₹${fiatDue} via Gateway?`)
-      if (!userApproved) return
-      paymentReference = generatePaymentRef()
-    }
-
-    executeClaim(
-      {
+    try {
+      // ── Step 1: create the claim server-side ────────────────────────────
+      // The server computes the amount; the client never declares it.
+      const data = await executeClaim({
         token,
+        product_id: selectedProduct.id,
         product_variant_id: selectedVariantId,
         shipping_address: formData,
-        fiat_paid: fiatDue,
-        payment_reference: paymentReference,
-      },
-      {
-        onSuccess: (data) => {
-          clearClaimContext()
-          alert(`Order Placed: ${data.order_number}`)
-          navigate(`/${slug}/profile`)
-        },
+      })
+
+      if (data.fulfilled) {
+        finishClaim(data.order_number)
+        return
       }
-    )
+
+      if (!data.payment_required || !data.razorpay_order_id) {
+        finishClaim(data.order_number)
+        return
+      }
+
+      // ── Step 2: pay the exact server-created amount ─────────────────────
+      setIsPaying(true)
+      await loadRazorpayScript()
+
+      await new Promise<void>((resolve, reject) => {
+        const rzp = new window.Razorpay({
+          key: data.razorpay_key_id!,
+          amount: data.razorpay_amount!,
+          currency: data.razorpay_currency ?? "INR",
+          name: data.company_name ?? "Rewards",
+          description: "Complete your claim",
+          order_id: data.razorpay_order_id!,
+          prefill: {
+            name: data.user_name,
+            email: data.user_email,
+          },
+          theme: { color: "#2563eb" },
+          modal: {
+            ondismiss: () =>
+              reject(
+                Object.assign(new Error("PAYMENT_CANCELLED"), { silent: true })
+              ),
+          },
+          handler: async (response) => {
+            // Payment completed — verify with the server, with retries.
+            // IMPORTANT: if every retry fails, the money is STILL taken.
+            // The server webhook fulfils the claim on its own, so we never
+            // tell the user the payment failed.
+            const proof = {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            }
+
+            try {
+              let verified = false
+
+              for (let attempt = 1; attempt <= 3 && !verified; attempt++) {
+                try {
+                  // ── Step 3: server verifies signature + gateway amount ──
+                  await verifyClaim(proof)
+                  verified = true
+                } catch {
+                  if (attempt < 3) {
+                    await new Promise((r) => setTimeout(r, 1200 * attempt))
+                  }
+                }
+              }
+
+              if (verified) {
+                finishClaim(data.order_number)
+              } else {
+                toast.info(
+                  `Payment received! Order ${data.order_number} is being confirmed — it will appear in your profile shortly.`,
+                  { duration: 10000 }
+                )
+                clearClaimContext()
+                queryClient.invalidateQueries({ queryKey: ["orders", slug] })
+                navigate(`/${slug}/profile`)
+              }
+
+              resolve()
+            } catch {
+              // Never reject after a successful payment — resolve so the
+              // outer catch (error toast) cannot show "payment failed".
+              resolve()
+            }
+          },
+        })
+        rzp.open()
+      })
+    } catch (error) {
+      const message = getErrorMessage(error)
+      if (message === "PAYMENT_CANCELLED") {
+        toast.info(
+          "Payment cancelled. Your reward link is still valid — you can try again."
+        )
+      } else {
+        toast.error(
+          message || "Could not complete your claim. Please try again."
+        )
+      }
+    } finally {
+      setIsPaying(false)
+    }
   }
 
   return (
@@ -132,7 +238,6 @@ export function ClaimCheckoutModal() {
               <span>You Pay</span>
               <span>₹{fiatDue}</span>
             </div>
-            ={" "}
             {remainingReward > 0 && (
               <p className="mt-4 rounded-md bg-blue-50 p-3 text-xs font-medium text-blue-800">
                 You have ₹{remainingReward} left over! This will be deposited
@@ -244,10 +349,14 @@ export function ClaimCheckoutModal() {
 
             <button
               type="submit"
-              disabled={isPending || !selectedVariantId}
+              disabled={
+                isPending ||
+                isPaying ||
+                (selectedProduct.has_variants && !selectedVariantId)
+              }
               className="mt-6 w-full rounded-lg bg-blue-600 py-4 font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending ? (
+              {isPending || isPaying ? (
                 <Loader2 className="mx-auto h-5 w-5 animate-spin" />
               ) : fiatDue > 0 ? (
                 `Pay ₹${fiatDue} & Claim`

@@ -13,6 +13,8 @@ import ProfilePage from "@/pages/ProfilePage"
 import ClaimPage from "@/pages/ClaimPage"
 import TermsPage from "@/pages/TermsPage"
 import PrivacyPage from "@/pages/PrivacyPage"
+import OrderSuccessPage from "@/pages/OrderSuccessPage"
+import OrderDetailPage from "@/pages/OrderDetailPage"
 // import OrdersPage from "@/pages/OrdersPage"
 
 export const router = createBrowserRouter(
@@ -47,7 +49,12 @@ export const router = createBrowserRouter(
           element: <ProtectedRoute />,
           children: [
             { path: "checkout", element: <CheckoutPage /> },
+            {
+              path: "order-success/:orderNumber",
+              element: <OrderSuccessPage />,
+            },
             { path: "profile", element: <ProfilePage /> },
+            { path: "orders/:orderNumber", element: <OrderDetailPage /> },
             { path: "claim", element: <ClaimPage /> },
             // { path: "orders", element: <OrdersPage /> },
           ],

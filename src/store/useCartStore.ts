@@ -1,5 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+
+import { tenantStorageKey } from "@/lib/tenant"
 import type { Product, ProductVariant } from "@/hooks/useStorefront"
 
 export interface CartItem {
@@ -85,7 +87,7 @@ export const useCartStore = create<CartState>()(
       setCartOpen: (isOpen) => set({ isOpen }),
     }),
     {
-      name: "storefront-cart",
+      name: tenantStorageKey("storefront-cart"),
     }
   )
 )

@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { tenantStorageKey } from "@/lib/tenant"
 
 export interface User {
   id: number
@@ -48,6 +49,6 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ token: null, user: null, isAuthenticated: false }),
       setUser: (user) => set({ user }),
     }),
-    { name: "storefront-auth" }
+    { name: tenantStorageKey("storefront-auth") }
   )
 )
