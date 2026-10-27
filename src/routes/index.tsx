@@ -5,6 +5,8 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute"
 
 import HomePage from "@/pages/HomePage"
 import LoginPage from "@/pages/LoginPage"
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage"
+import ResetPasswordPage from "@/pages/ResetPasswordPage"
 import ProductPage from "@/pages/ProductPage"
 import CategoryPage from "@/pages/CategoryPage"
 
@@ -41,6 +43,8 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <HomePage /> },
         { path: "login", element: <LoginPage /> },
+        { path: "forgot-password", element: <ForgotPasswordPage /> },
+        { path: "reset-password", element: <ResetPasswordPage /> },
         { path: "product/:productSlug", element: <ProductPage /> },
         { path: "category/:categorySlug", element: <CategoryPage /> },
         { path: "terms", element: <TermsPage /> },

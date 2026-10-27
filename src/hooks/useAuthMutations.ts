@@ -6,11 +6,43 @@ import { api } from "@/lib/api"
 import { useAuthStore, type User } from "@/store/useAuthStore"
 
 export const loginSchema = z.object({
-  email: z.string().min(1, "Email is required").email("Please enter a valid email address"),
+  email: z
+    .string()
+    .min(1, "Email is required")
+    .email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 })
 
 export type LoginFormValues = z.infer<typeof loginSchema>
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().min(1, "Email is required").email("Invalid email address"),
+})
+
+export const resetPasswordSchema = z
+  .object({
+    email: z
+      .string()
+      .min(1, "Email is required")
+      .email("Invalid email address"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(255, "Password must not exceed 255 characters"),
+    password_confirmation: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.password === data.password_confirmation, {
+    message: "Passwords do not match",
+    path: ["password_confirmation"],
+  })
+
+export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
+export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>
+export type ResetPasswordRequest = ResetPasswordFormValues & { token: string }
+
+interface AuthMessageResponse {
+  message: string
+}
 
 interface LoginResponse {
   message: string
@@ -20,7 +52,10 @@ interface LoginResponse {
 
 export const getApiErrorMessage = (error: unknown): string => {
   if (isAxiosError(error)) {
-    return error.response?.data?.message || "An unexpected error occurred. Please try again."
+    return (
+      error.response?.data?.message ||
+      "An unexpected error occurred. Please try again."
+    )
   }
   if (error instanceof Error) return error.message
   return "An unexpected error occurred."
@@ -31,7 +66,10 @@ export const useLoginMutation = (slug: string) => {
 
   return useMutation({
     mutationFn: async (credentials: LoginFormValues) => {
-      const { data } = await api.post<LoginResponse>(`/${slug}/auth/login`, credentials)
+      const { data } = await api.post<LoginResponse>(
+        `/${slug}/auth/login`,
+        credentials
+      )
       return data
     },
     onSuccess: (data) => {
@@ -45,12 +83,44 @@ export const useMeQuery = (slug: string) => {
   return useQuery({
     queryKey: ["user-me", slug],
     queryFn: async () => {
-      const { data } = await api.get<{ message: string; data: User }>(`/${slug}/user/me`)
+      const { data } = await api.get<{ message: string; data: User }>(
+        `/${slug}/user/me`
+      )
       setUser(data.data)
       return data.data
     },
     enabled: !!slug && isAuthenticated,
     staleTime: 1000 * 60 * 5,
+  })
+}
+
+export const useForgotPasswordMutation = (slug: string) => {
+  return useMutation({
+    mutationFn: async (data: ForgotPasswordFormValues) => {
+      const response = await api.post<AuthMessageResponse>(
+        `/${slug}/auth/forgot-password`,
+        data
+      )
+      return response.data
+    },
+  })
+}
+
+export const useResetPasswordMutation = (slug: string) => {
+  const logout = useAuthStore((state) => state.logout)
+
+  return useMutation({
+    mutationFn: async (data: ResetPasswordRequest) => {
+      const response = await api.post<AuthMessageResponse>(
+        `/${slug}/auth/reset-password`,
+        data
+      )
+      return response.data
+    },
+    onSuccess: () => {
+      // The backend also revokes every Sanctum token for this user.
+      logout()
+    },
   })
 }
 

@@ -97,6 +97,63 @@ const DEFAULT_CLAIM_BLOCKS: PageBlock[] = [
   },
 ]
 
+type ClaimRewardType = "points" | "code" | "link"
+
+/** Fallback for points/code pages. These rewards never need a product picker. */
+const buildCongratulationsBlocks = (
+  rewardType: Exclude<ClaimRewardType, "link">,
+  firstName: string,
+  rewardValue: number,
+  claimCode?: string | null
+): PageBlock[] => {
+  const isCode = rewardType === "code"
+
+  return [
+    {
+      id: "default_congratulations_hero",
+      isVisible: true,
+      type: "HeroBanner",
+      variant: "centered",
+      content: {
+        heading: `Congratulations, ${firstName || "there"}!`,
+        subtext: isCode
+          ? `You have received a reward worth ₹${rewardValue.toLocaleString("en-IN")}. Your reward code is ${claimCode || "shown below"}.`
+          : `You have received ${rewardValue.toLocaleString("en-IN")} points. They are ready to use in your rewards wallet.`,
+        buttonText: "",
+        buttonLink: "",
+      },
+      styles: {
+        backgroundImage: "",
+        overlayOpacity: 0,
+        backgroundColor: "#0f172a",
+        headingColor: "#ffffff",
+        subtextColor: "#cbd5e1",
+        buttonBgColor: "#ffffff",
+        buttonTextColor: "#0f172a",
+      },
+    },
+    {
+      id: "default_congratulations_cta",
+      isVisible: true,
+      type: "CallToAction",
+      variant: "standard",
+      content: {
+        heading: isCode
+          ? `Use code ${claimCode || "from your reward email"} when you redeem your reward.`
+          : "Enjoy your reward!",
+        buttonText: "",
+        buttonLink: "",
+      },
+      styles: {
+        backgroundColor: "#f1f5f9",
+        headingColor: "#0f172a",
+        buttonBgColor: "#0f172a",
+        buttonTextColor: "#ffffff",
+      },
+    },
+  ]
+}
+
 export default function ClaimPage() {
   const { slug } = useParams<{ slug: string }>()
   const [searchParams] = useSearchParams()
@@ -106,7 +163,9 @@ export default function ClaimPage() {
   const { data, isLoading, error } = useValidateClaimTokenQuery(slug!, token)
 
   useEffect(() => {
-    if (data && token) {
+    // Only link campaigns open product checkout. Points/code tokens are for
+    // viewing their landing page and must never create a claim session.
+    if (data && token && (data.reward_type ?? "link") === "link") {
       setClaimContext(
         token,
         data.reward_value,
@@ -203,15 +262,31 @@ export default function ClaimPage() {
   }
   if (!data) return null
 
-  // Only blocks the renderer understands, and only when visible. If nothing
-  // renderable remains (empty schema or a foreign block dialect), fall back
-  // to the default claim blocks rather than rendering a white page.
+  const rewardType = (data.reward_type ?? "link") as ClaimRewardType
+  const isLinkReward = rewardType === "link"
+
+  // Render only known, visible blocks. A RewardSelector is valid exclusively
+  // for link rewards; points/code pages use the same Hero/Video/CTA blocks but
+  // are non-purchasing congratulations experiences.
   const blocks: PageBlock[] = (data.template_schema ?? []).filter(
-    (block: PageBlock) => block?.isVisible
+    (block: PageBlock) =>
+      block?.isVisible &&
+      (["HeroBanner", "VideoSection", "CallToAction"].includes(block.type) ||
+        (isLinkReward && block.type === "RewardSelector"))
   )
   const hasSelector = blocks.some((block) => block.type === "RewardSelector")
-  const renderBlocks =
-    blocks.length > 0 && hasSelector ? blocks : DEFAULT_CLAIM_BLOCKS
+  const renderBlocks = isLinkReward
+    ? blocks.length > 0 && hasSelector
+      ? blocks
+      : DEFAULT_CLAIM_BLOCKS
+    : blocks.length > 0
+      ? blocks
+      : buildCongratulationsBlocks(
+          rewardType === "code" ? "code" : "points",
+          data.recipient?.first_name ?? "",
+          Number(data.reward_value ?? 0),
+          data.claim_code
+        )
 
   const theme = data.template_theme || {
     primaryColor: "#2563eb",
@@ -238,10 +313,11 @@ export default function ClaimPage() {
         style={{ backgroundColor: theme.primaryColor, color: "#ffffff" }}
       >
         <span className="text-[10px] font-semibold tracking-widest uppercase opacity-80">
-          Reward value
+          {rewardType === "points" ? "Points awarded" : "Reward value"}
         </span>
         <span className="text-base font-bold">
-          ₹{Number(data.reward_value ?? 0).toLocaleString("en-IN")}
+          {rewardType !== "points" && "₹"}
+          {Number(data.reward_value ?? 0).toLocaleString("en-IN")}
         </span>
         {data.recipient && (
           <span className="text-xs opacity-80">
@@ -249,7 +325,10 @@ export default function ClaimPage() {
           </span>
         )}
         <span className="text-[10px] tracking-widest uppercase opacity-60">
-          · One product per link
+          {rewardType === "link" && "· One product per link"}
+          {rewardType === "points" && "· Points already credited"}
+          {rewardType === "code" &&
+            `· Reward code: ${data.claim_code || "see below"}`}
         </span>
       </div>
 
@@ -257,7 +336,7 @@ export default function ClaimPage() {
         <StorefrontBlockRenderer key={block.id} block={block} />
       ))}
 
-      {isCheckoutModalOpen && <ClaimCheckoutModal />}
+      {isLinkReward && isCheckoutModalOpen && <ClaimCheckoutModal />}
     </div>
   )
 }

@@ -32,7 +32,11 @@ api.interceptors.request.use((config) => {
 // the login form. Without this guard the interceptor below "handled" them by
 // hard-navigating to the login page, so the page appeared to simply refresh
 // and the actual error message never showed.
-const INLINE_AUTH_ENDPOINTS = ["/auth/login"]
+const INLINE_AUTH_ENDPOINTS = [
+  "/auth/login",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+]
 
 api.interceptors.response.use(
   (response) => response,

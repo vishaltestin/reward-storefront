@@ -1,4 +1,5 @@
 import {
+  Link,
   useNavigate,
   useParams,
   useLocation,
@@ -61,16 +62,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-[85vh] items-center justify-center px-4 py-12 sm:px-6 lg:px-8 bg-slate-50/50 font-sans overflow-hidden">
-
+    <div className="relative flex min-h-[85vh] items-center justify-center overflow-hidden bg-slate-50/50 px-4 py-12 font-sans sm:px-6 lg:px-8">
       {/* Subtle Corporate Grid Background */}
       <div className="absolute inset-0 z-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]" />
 
       <div className="relative z-10 w-full max-w-[420px]">
-        <div className="rounded-[2rem] border border-slate-100 bg-white p-8 sm:p-10 shadow-xl shadow-slate-200/20">
-
-          <div className="flex flex-col items-center text-center mb-8">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1 text-[9px] font-semibold tracking-widest text-slate-500 uppercase border border-slate-100 mb-6">
+        <div className="rounded-[2rem] border border-slate-100 bg-white p-8 shadow-xl shadow-slate-200/20 sm:p-10">
+          <div className="mb-8 flex flex-col items-center text-center">
+            <span className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[9px] font-semibold tracking-widest text-slate-500 uppercase">
               <Lock className="h-3 w-3 text-slate-400" /> Restricted Access
             </span>
 
@@ -78,25 +77,28 @@ export default function LoginPage() {
               <img
                 src={config.logo_url}
                 alt={config?.name || "Logo"}
-                className="mx-auto h-10 object-contain mb-5"
+                className="mx-auto mb-5 h-10 object-contain"
               />
             ) : (
-              <div className="h-12 w-12 rounded-xl bg-slate-950 flex items-center justify-center mb-5 shadow-inner">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-950 shadow-inner">
                 <Sparkles className="h-6 w-6 text-slate-300" />
               </div>
             )}
 
-            <h2 className="text-2xl font-heading font-semibold tracking-tight text-slate-900">
-              {config?.name ? `Sign in to ${config.name}` : "Portal Authentication"}
+            <h2 className="font-heading text-2xl font-semibold tracking-tight text-slate-900">
+              {config?.name
+                ? `Sign in to ${config.name}`
+                : "Portal Authentication"}
             </h2>
-            <p className="mt-2.5 text-xs text-slate-500 leading-relaxed max-w-[280px]">
-              Enter your corporate credentials to access your curated allocation catalog and assets.
+            <p className="mt-2.5 max-w-[280px] text-xs leading-relaxed text-slate-500">
+              Enter your corporate credentials to access your curated allocation
+              catalog and assets.
             </p>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
             {apiError && (
-              <div className="flex items-start gap-2.5 rounded-xl bg-rose-50 p-3.5 text-xs text-rose-700 border border-rose-100 animate-in fade-in slide-in-from-top-2">
+              <div className="flex animate-in items-start gap-2.5 rounded-xl border border-rose-100 bg-rose-50 p-3.5 text-xs text-rose-700 fade-in slide-in-from-top-2">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
                 <p className="font-medium">{getApiErrorMessage(apiError)}</p>
               </div>
@@ -106,7 +108,7 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <label
                   htmlFor="email"
-                  className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase ml-1"
+                  className="ml-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase"
                 >
                   Corporate Email
                 </label>
@@ -114,7 +116,7 @@ export default function LoginPage() {
                   id="email"
                   type="email"
                   {...register("email")}
-                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm shadow-none transition-colors focus:border-slate-300 focus:bg-white"
                   placeholder="name@organization.com"
                   aria-invalid={!!errors.email}
                 />
@@ -126,22 +128,25 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between ml-1">
+                <div className="ml-1 flex items-center justify-between">
                   <label
                     htmlFor="password"
                     className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase"
                   >
                     Security Key
                   </label>
-                  <a href="#" className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-600 transition-colors">
-                    Reset Access?
-                  </a>
+                  <Link
+                    to={`/${slug}/forgot-password`}
+                    className="text-[10px] font-semibold text-indigo-500 transition-colors hover:text-indigo-600"
+                  >
+                    Forgot password?
+                  </Link>
                 </div>
                 <Input
                   id="password"
                   type="password"
                   {...register("password")}
-                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm focus:bg-white focus:border-slate-300 transition-colors shadow-none tracking-widest placeholder:tracking-normal"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm tracking-widest shadow-none transition-colors placeholder:tracking-normal focus:border-slate-300 focus:bg-white"
                   placeholder="••••••••"
                   aria-invalid={!!errors.password}
                 />
@@ -157,7 +162,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isPending}
-                className="w-full h-12 rounded-full bg-slate-950 text-sm font-semibold text-white hover:bg-slate-800 hover:scale-[1.02] transition-all shadow-md group flex items-center justify-center gap-2"
+                className="group flex h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-950 text-sm font-semibold text-white shadow-md transition-all hover:scale-[1.02] hover:bg-slate-800"
               >
                 {isPending ? (
                   <>
@@ -166,7 +171,8 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    Log In <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    Log In{" "}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </>
                 )}
               </Button>
