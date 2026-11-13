@@ -17,6 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import ProductCard from "@/components/ProductCard"
 
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
+
 const SORT_OPTIONS = [
   { value: "default", label: "Default" },
   { value: "price_asc", label: "Price: Low → High" },
@@ -34,17 +36,22 @@ export default function CategoryPage() {
   const [sortBy, setSortBy] = useState<FilterParams["sort_by"]>("default")
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
+  const [brandId, setBrandId] = useState("")
+  const [pincode, setPincode] = useState("")
+  const [location, setLocation] = useState("")
+  const [offerType, setOfferType] = useState("")
   const [page, setPage] = useState(1)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
-  // Debounce search input
+  // Debounce search input. The timer handle lives at module scope (typed) so
+  // we never reach for `window as any`.
   const handleSearchChange = useCallback((val: string) => {
     setSearch(val)
-    clearTimeout((window as any).__searchTimeout)
-      ; (window as any).__searchTimeout = setTimeout(() => {
-        setDebouncedSearch(val)
-        setPage(1)
-      }, 400)
+    clearTimeout(searchDebounceTimer)
+    searchDebounceTimer = setTimeout(() => {
+      setDebouncedSearch(val)
+      setPage(1)
+    }, 400)
   }, [])
 
   const filterParams: FilterParams = {
@@ -55,6 +62,10 @@ export default function CategoryPage() {
     ...(debouncedSearch ? { q: debouncedSearch } : {}),
     ...(minPrice ? { min_price: parseFloat(minPrice) } : {}),
     ...(maxPrice ? { max_price: parseFloat(maxPrice) } : {}),
+    ...(brandId ? { brand_id: Number(brandId) } : {}),
+    ...(pincode ? { pincode } : {}),
+    ...(location ? { location } : {}),
+    ...(offerType ? { type: offerType as FilterParams["type"] } : {}),
   }
 
   const { data: paginatedData, isLoading } = useFilterProducts(slug!, filterParams)
@@ -62,8 +73,17 @@ export default function CategoryPage() {
   const products = paginatedData?.data ?? []
   const totalPages = paginatedData?.last_page ?? 1
   const total = paginatedData?.total ?? 0
+  const facets = paginatedData?.facets
 
-  const hasActiveFilters = debouncedSearch || minPrice || maxPrice || sortBy !== "default"
+  const hasActiveFilters =
+    !!debouncedSearch ||
+    !!minPrice ||
+    !!maxPrice ||
+    !!brandId ||
+    !!pincode ||
+    !!location ||
+    !!offerType ||
+    sortBy !== "default"
 
   const clearFilters = () => {
     setSearch("")
@@ -71,6 +91,10 @@ export default function CategoryPage() {
     setSortBy("default")
     setMinPrice("")
     setMaxPrice("")
+    setBrandId("")
+    setPincode("")
+    setLocation("")
+    setOfferType("")
     setPage(1)
   }
 
@@ -142,7 +166,7 @@ export default function CategoryPage() {
             className={`rounded-full border-slate-200 h-10 px-4 text-sm shadow-none gap-2 ${filtersOpen ? "bg-slate-900 text-white border-slate-900 hover:bg-slate-800 hover:text-white" : "text-slate-700 hover:bg-slate-50"}`}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            Price Range
+            Filters
           </Button>
 
           {hasActiveFilters && (
@@ -157,25 +181,63 @@ export default function CategoryPage() {
           )}
         </div>
 
-        {/* Price inputs */}
+        {/* Filter panel */}
         {filtersOpen && (
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Price Range</span>
-            <Input
-              type="number"
-              placeholder="Min ₹"
-              value={minPrice}
-              onChange={(e) => { setMinPrice(e.target.value); setPage(1) }}
-              className="h-9 max-w-[140px] rounded-full border-slate-200 text-sm shadow-none"
-            />
-            <span className="text-slate-300">–</span>
-            <Input
-              type="number"
-              placeholder="Max ₹"
-              value={maxPrice}
-              onChange={(e) => { setMaxPrice(e.target.value); setPage(1) }}
-              className="h-9 max-w-[140px] rounded-full border-slate-200 text-sm shadow-none"
-            />
+          <div className="rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <FacetSelect
+                label="Brand"
+                value={brandId}
+                options={facets?.brands}
+                placeholder="All brands"
+                onChange={(value) => { setBrandId(value); setPage(1) }}
+              />
+
+              <FacetSelect
+                label="Offer type"
+                value={offerType}
+                options={facets?.types}
+                placeholder="All types"
+                onChange={(value) => { setOfferType(value); setPage(1) }}
+              />
+
+              <FacetSelect
+                label="Location"
+                value={location}
+                options={facets?.locations}
+                placeholder="All locations"
+                onChange={(value) => { setLocation(value); setPage(1) }}
+              />
+
+              <FacetSelect
+                label="Pincode"
+                value={pincode}
+                options={facets?.pincodes}
+                placeholder="All pincodes"
+                onChange={(value) => { setPincode(value); setPage(1) }}
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+              <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase whitespace-nowrap">
+                Price range
+              </span>
+              <Input
+                type="number"
+                placeholder={facets?.price ? `Min ₹${facets.price.min || ""}` : "Min ₹"}
+                value={minPrice}
+                onChange={(e) => { setMinPrice(e.target.value); setPage(1) }}
+                className="h-9 max-w-[140px] rounded-full border-slate-200 text-sm shadow-none"
+              />
+              <span className="text-slate-300">–</span>
+              <Input
+                type="number"
+                placeholder={facets?.price ? `Max ₹${facets.price.max || ""}` : "Max ₹"}
+                value={maxPrice}
+                onChange={(e) => { setMaxPrice(e.target.value); setPage(1) }}
+                className="h-9 max-w-[140px] rounded-full border-slate-200 text-sm shadow-none"
+              />
+            </div>
           </div>
         )}
       </section>
@@ -288,5 +350,48 @@ export default function CategoryPage() {
         )}
       </section>
     </div>
+  )
+}
+
+interface FacetSelectProps {
+  label: string
+  value: string
+  placeholder: string
+  options?: { value: string | number; label: string }[]
+  onChange: (value: string) => void
+}
+
+/**
+ * Compact native select for the storefront filter panel. Uses a native control
+ * so the facet lists (which can be long: pincodes, addresses) stay cheap.
+ */
+function FacetSelect({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+}: FacetSelectProps) {
+  const isDisabled = !options || options.length === 0
+
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+        {label}
+      </span>
+      <select
+        value={value}
+        disabled={isDisabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 w-full rounded-full border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+      >
+        <option value="">{placeholder}</option>
+        {(options ?? []).map((option) => (
+          <option key={String(option.value)} value={String(option.value)}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }

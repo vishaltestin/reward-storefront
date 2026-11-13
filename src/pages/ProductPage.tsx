@@ -36,6 +36,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel"
+import type { LucideIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 import ProductCTA from "@/components/ProductCTA"
 
@@ -52,6 +53,21 @@ interface DigitalTypeData {
   pincode?: string
   mapLocation_lat?: string
   mapLocation_lng?: string
+}
+
+interface InfoCardItem {
+  label: string
+  value: string
+  icon?: LucideIcon | null
+  mono?: boolean
+  wide?: boolean
+}
+
+interface ItineraryStatItem {
+  icon: LucideIcon
+  label: string
+  value: string
+  sub?: string
 }
 
 interface ExperienceTypeData {
@@ -101,6 +117,11 @@ function ProductPageContent() {
   } = useProductDetail(slug!, productSlug!)
 
   const [quantity, setQuantity] = useState<number>(1)
+  // Experiences are booked per head, not per unit. The stepper inside
+  // <ExperienceCTA /> is the single source of truth for it — the page used
+  // to render its own quantity stepper as well (two steppers, and the
+  // bottom one was wired to a no-op setter).
+  const [guestCount, setGuestCount] = useState<number>(1)
   const [selectedAttributes, setSelectedAttributes] = useState<
     Record<string, string>
   >({})
@@ -287,6 +308,28 @@ function ProductPageContent() {
   const embedUrl = getYouTubeEmbedUrl(product.video_url)
   const digitalData = product.type_data as DigitalTypeData | undefined
   const expData = product.type_data as ExperienceTypeData | undefined
+
+  // Store / venue map. The admin panel already captures latitude + longitude
+  // (and a fallback address / destination) but the storefront never rendered
+  // anything with them — hence "Google Map is not showing".
+  const mapQuery = (() => {
+    const lat = (digitalData?.mapLocation_lat ?? "").toString().trim()
+    const lng = (digitalData?.mapLocation_lng ?? "").toString().trim()
+
+    if (lat && lng) return `${lat},${lng}`
+
+    const address = [digitalData?.address, digitalData?.pincode]
+      .filter(Boolean)
+      .join(" ")
+
+    return (address || expData?.destination || "").trim()
+  })()
+  const mapEmbedSrc = mapQuery
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=15&output=embed`
+    : null
+  const mapLink = mapQuery
+    ? `https://maps.google.com/?q=${encodeURIComponent(mapQuery)}`
+    : null
   const discountPct =
     pricing.mrpFiat > pricing.unitFiat
       ? Math.round(
@@ -640,7 +683,7 @@ function ProductPageContent() {
             </div>
           )}
 
-          {product.selling_price > 0 && (
+          {product.type === "physical" && product.selling_price > 0 && (
             <div className="flex items-center justify-between py-1">
               <div className="flex items-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <button
@@ -716,6 +759,8 @@ function ProductPageContent() {
             quantity={quantity}
             pricing={pricing}
             isOutOfStock={isOutOfStock}
+            guestCount={guestCount}
+            setGuestCount={setGuestCount}
           />
 
           <p className="flex items-center justify-center gap-2 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
@@ -829,50 +874,57 @@ function ProductPageContent() {
               </div>
 
               <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[
-                  digitalData.storeName && {
-                    label: "Store / Merchant",
-                    value: digitalData.storeName,
-                    icon: null,
-                  },
-                  digitalData.couponCode && {
-                    label: "Coupon Format",
-                    value: digitalData.couponCode,
-                    mono: true,
-                  },
-                  digitalData.validUntil && {
-                    label: "Valid Until",
-                    value: digitalData.validUntil,
-                    icon: Calendar,
-                  },
-                  digitalData.phone && {
-                    label: "Phone",
-                    value: digitalData.phone,
-                  },
-                  digitalData.address && {
-                    label: "Address",
-                    value: `${digitalData.address}${digitalData.pincode ? ` – ${digitalData.pincode}` : ""}`,
-                    icon: MapPin,
-                    wide: true,
-                  },
-                ]
-                  .filter(Boolean)
-                  .map((item: any, i) => (
-                    <div
-                      key={i}
-                      className={`rounded-2xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur-sm ${item.wide ? "sm:col-span-2 lg:col-span-2" : ""}`}
+                {(
+                  [
+                    digitalData.storeName
+                      ? {
+                          label: "Store / Merchant",
+                          value: digitalData.storeName,
+                          icon: null,
+                        }
+                      : null,
+                    digitalData.couponCode
+                      ? {
+                          label: "Coupon Format",
+                          value: digitalData.couponCode,
+                          mono: true,
+                        }
+                      : null,
+                    digitalData.validUntil
+                      ? {
+                          label: "Valid Until",
+                          value: digitalData.validUntil,
+                          icon: Calendar,
+                        }
+                      : null,
+                    digitalData.phone
+                      ? { label: "Phone", value: digitalData.phone }
+                      : null,
+                    digitalData.address
+                      ? {
+                          label: "Address",
+                          value: `${digitalData.address}${digitalData.pincode ? ` – ${digitalData.pincode}` : ""}`,
+                          icon: MapPin,
+                          wide: true,
+                        }
+                      : null,
+                  ].filter((item) => item !== null) as InfoCardItem[]
+                ).map((item, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-2xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur-sm ${item.wide ? "sm:col-span-2 lg:col-span-2" : ""}`}
+                  >
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                      {item.icon && <item.icon className="h-3 w-3" />}
+                      {item.label}
+                    </p>
+                    <p
+                      className={`font-semibold text-slate-900 ${item.mono ? "inline-block rounded bg-white/70 px-2 py-0.5 font-mono text-sm" : ""}`}
                     >
-                      <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                        {item.icon && <item.icon className="h-3 w-3" />}
-                        {item.label}
-                      </p>
-                      <p
-                        className={`font-semibold text-slate-900 ${item.mono ? "inline-block rounded bg-white/70 px-2 py-0.5 font-mono text-sm" : ""}`}
-                      >
-                        {item.value}
-                      </p>
-                    </div>
-                  ))}
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
 
                 {digitalData.website && (
                   <div className="rounded-2xl border border-white/50 bg-white/60 p-5 shadow-sm backdrop-blur-sm">
@@ -890,6 +942,32 @@ function ProductPageContent() {
                   </div>
                 )}
               </div>
+
+              {mapEmbedSrc && mapLink && (
+                <div className="mb-6 overflow-hidden rounded-2xl border border-white/50 bg-white/60 shadow-sm backdrop-blur-sm">
+                  <div className="flex items-center justify-between gap-3 px-5 py-3">
+                    <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                      <MapPin className="h-3 w-3" /> Store / venue location
+                    </p>
+                    <a
+                      href={mapLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:text-blue-900"
+                    >
+                      Open in Maps <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                  <iframe
+                    title="Store location map"
+                    src={mapEmbedSrc}
+                    className="h-64 w-full border-0"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    allowFullScreen
+                  />
+                </div>
+              )}
 
               {digitalData.aboutBrand && (
                 <div className="mb-6 rounded-2xl border border-white/50 bg-white/50 p-6 backdrop-blur-sm">
@@ -930,48 +1008,56 @@ function ProductPageContent() {
 
             <div className="space-y-8 bg-linear-to-br from-amber-50/80 to-orange-50/50 p-8 md:p-12">
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                {[
-                  expData.destination && {
-                    icon: MapPin,
-                    label: "Destination",
-                    value: expData.destination,
-                  },
-                  expData.duration && {
-                    icon: Calendar,
-                    label: "Duration",
-                    value: expData.duration,
-                  },
-                  expData.groupSize && {
-                    icon: Users,
-                    label: "Group Size",
-                    value: expData.groupSize,
-                  },
-                  expData.departureDate && {
-                    icon: Calendar,
-                    label: "Departure",
-                    value: expData.departureDate,
-                    sub: expData.departureTime,
-                  },
-                ]
-                  .filter(Boolean)
-                  .map((item: any, i) => (
-                    <div
-                      key={i}
-                      className="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm"
-                    >
-                      <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                        <item.icon className="h-3 w-3" /> {item.label}
+                {(
+                  [
+                    expData.destination
+                      ? {
+                          icon: MapPin,
+                          label: "Destination",
+                          value: expData.destination,
+                        }
+                      : null,
+                    expData.duration
+                      ? {
+                          icon: Calendar,
+                          label: "Duration",
+                          value: expData.duration,
+                        }
+                      : null,
+                    expData.groupSize
+                      ? {
+                          icon: Users,
+                          label: "Group Size",
+                          value: expData.groupSize,
+                        }
+                      : null,
+                    expData.departureDate
+                      ? {
+                          icon: Calendar,
+                          label: "Departure",
+                          value: expData.departureDate,
+                          sub: expData.departureTime,
+                        }
+                      : null,
+                  ].filter((item) => item !== null) as ItineraryStatItem[]
+                ).map((item, i) => (
+                  <div
+                    key={i}
+                    className="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm"
+                  >
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                      <item.icon className="h-3 w-3" /> {item.label}
+                    </p>
+                    <p className="text-sm font-bold text-orange-950">
+                      {item.value}
+                    </p>
+                    {item.sub && (
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        @ {item.sub}
                       </p>
-                      <p className="text-sm font-bold text-orange-950">
-                        {item.value}
-                      </p>
-                      {item.sub && (
-                        <p className="mt-0.5 text-xs text-slate-400">
-                          @ {item.sub}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                    )}
+                  </div>
+                ))}
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {expData.guest && (

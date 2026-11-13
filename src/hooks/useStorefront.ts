@@ -193,11 +193,30 @@ export const useOrderDetail = (slug: string, orderNumber: string) => {
 export interface FilterParams {
   q?: string
   category_slug?: string
+  brand_id?: number
+  type?: "physical" | "digital" | "experience"
+  pincode?: string
+  location?: string
   min_price?: number
   max_price?: number
   sort_by?: "default" | "price_asc" | "price_desc" | "newest"
   per_page?: number
   page?: number
+}
+
+export interface FacetOption {
+  value: string | number
+  label: string
+  parent_id?: number | null
+}
+
+export interface ProductFacets {
+  categories: FacetOption[]
+  brands: FacetOption[]
+  pincodes: FacetOption[]
+  locations: FacetOption[]
+  types: FacetOption[]
+  price: { min: number; max: number }
 }
 
 export interface PaginatedProducts {
@@ -208,6 +227,8 @@ export interface PaginatedProducts {
   total: number
   from: number
   to: number
+  /** Filter values present in this tenant's catalog. */
+  facets?: ProductFacets
 }
 
 export const useFilterProducts = (slug: string, params: FilterParams) => {

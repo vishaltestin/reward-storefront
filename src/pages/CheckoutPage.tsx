@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react"
+import type { FormEvent } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -483,6 +484,13 @@ export default function CheckoutPage() {
     </div>
   )
 
+  // react-hook-form's handleSubmit() returns a function that reads its internal
+  // refs, so it must be invoked from the event handler — not inline during
+  // render (React 19 throws "Cannot access refs during render").
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    handleSubmit(onSubmit)(event)
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -497,7 +505,7 @@ export default function CheckoutPage() {
       </div>
 
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleFormSubmit}
         className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12"
       >
         {/* ── Left column ──────────────────────────────────────────────────── */}
@@ -546,9 +554,13 @@ export default function CheckoutPage() {
                       </p>
                     )}
                     <div className="mt-1.5 flex items-center gap-3">
-                      <span className="rounded-md border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                        Qty: {item.quantity}
-                      </span>
+                      {/* Digital rewards are issued one per member, so the
+                          quantity chip is noise for gift cards / vouchers. */}
+                      {item.product.type === "physical" && (
+                        <span className="rounded-md border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                          Qty: {item.quantity}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

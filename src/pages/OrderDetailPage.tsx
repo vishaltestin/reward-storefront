@@ -36,6 +36,37 @@ const DELIVERY_STYLES: Record<string, string> = {
 const inr = (value: number | null | undefined) =>
   `₹${Number(value ?? 0).toLocaleString("en-IN")}`
 
+/**
+ * Order-level status -> per-item delivery status fallback.
+ *
+ * `order_items.delivery_status` defaults to "pending" and was never advanced by
+ * the admin panel, so every item badge stayed on "pending" even after the order
+ * was shipped or completed upstream. The order status is the value ops actually
+ * maintains, so use it whenever the item row is still on the default.
+ */
+const ORDER_TO_DELIVERY: Record<string, string> = {
+  pending: "pending",
+  paid: "processing",
+  processing: "processing",
+  shipped: "shipped",
+  completed: "delivered",
+  cancelled: "cancelled",
+  failed: "cancelled",
+}
+
+const resolveDeliveryStatus = (
+  itemStatus: string | null | undefined,
+  orderStatus: string | null | undefined
+) => {
+  const item = itemStatus ?? "pending"
+
+  // Explicit per-item state set by ops always wins — except for the "pending"
+  // default, which means "never touched".
+  if (item !== "pending") return item
+
+  return ORDER_TO_DELIVERY[orderStatus ?? ""] ?? item
+}
+
 export default function OrderDetailPage() {
   const { slug, orderNumber } = useParams<{
     slug: string
@@ -83,6 +114,41 @@ export default function OrderDetailPage() {
   const statusStyle =
     STATUS_STYLES[order.status] ??
     "bg-slate-100 text-slate-600 border-slate-200"
+
+  // Roll the per-item states up into one delivery state for the tracking panel.
+  // Previously the panel only rendered when a courier tracking number existed,
+  // so an order that ops had already marked shipped/processing still read
+  // "Not shipped yet".
+  const overallDelivery = (() => {
+    const states = order.items.map((item) =>
+      resolveDeliveryStatus(item.delivery_status, order.status)
+    )
+
+    if (states.length === 0) {
+      return resolveDeliveryStatus(null, order.status)
+    }
+    if (states.every((state) => state === "delivered" || state === "instant")) {
+      return "delivered"
+    }
+    if (states.some((state) => state === "shipped")) return "shipped"
+    if (states.some((state) => state === "processing")) return "processing"
+    if (states.some((state) => state === "cancelled")) return "cancelled"
+
+    return "pending"
+  })()
+
+  const DELIVERY_STEPS = [
+    { key: "pending", label: "Placed" },
+    { key: "processing", label: "Processing" },
+    { key: "shipped", label: "Shipped" },
+    { key: "delivered", label: "Delivered" },
+  ] as const
+
+  const currentStepIndex = Math.max(
+    0,
+    DELIVERY_STEPS.findIndex((step) => step.key === overallDelivery)
+  )
+  const isCancelled = overallDelivery === "cancelled"
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 font-sans sm:px-6 lg:px-8">
@@ -134,7 +200,10 @@ export default function OrderDetailPage() {
 
             <div className="space-y-4">
               {order.items.map((item, idx) => {
-                const delivery = item.delivery_status ?? "pending"
+                const delivery = resolveDeliveryStatus(
+                  item.delivery_status,
+                  order.status
+                )
                 return (
                   <div
                     key={idx}
@@ -320,8 +389,61 @@ export default function OrderDetailPage() {
                 Delivery Tracking
               </h2>
             </div>
+            {/* Current state, straight from ops */}
+            <div className="mb-5 flex items-center justify-between">
+              <span className="text-xs font-semibold tracking-wider text-slate-400 uppercase">
+                Current status
+              </span>
+              <span
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold tracking-wider uppercase ${
+                  DELIVERY_STYLES[overallDelivery] ?? DELIVERY_STYLES.pending
+                }`}
+              >
+                {isCancelled ? "cancelled" : overallDelivery}
+              </span>
+            </div>
+
+            {/* Timeline */}
+            {!isCancelled && (
+              <ol className="mb-5 space-y-3">
+                {DELIVERY_STEPS.map((step, index) => {
+                  const isDone = index <= currentStepIndex
+                  const isCurrent = index === currentStepIndex
+
+                  return (
+                    <li key={step.key} className="flex items-center gap-3">
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
+                          isDone
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-slate-50 text-slate-400"
+                        }`}
+                      >
+                        {isDone ? (
+                          <PackageCheck className="h-3.5 w-3.5" />
+                        ) : (
+                          index + 1
+                        )}
+                      </span>
+                      <span
+                        className={`text-sm ${
+                          isCurrent
+                            ? "font-semibold text-slate-900"
+                            : isDone
+                              ? "text-slate-600"
+                              : "text-slate-400"
+                        }`}
+                      >
+                        {step.label}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
+
             {order.tracking_number ? (
-              <div className="space-y-3">
+              <div className="space-y-3 border-t border-slate-100 pt-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Courier</span>
                   <span className="font-semibold text-slate-800">
@@ -335,7 +457,8 @@ export default function OrderDetailPage() {
                   </span>
                 </div>
               </div>
-            ) : (
+            ) : overallDelivery === "pending" ||
+              overallDelivery === "processing" ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center">
                 <p className="text-sm font-medium text-slate-500">
                   Not shipped yet
@@ -345,6 +468,10 @@ export default function OrderDetailPage() {
                   the courier.
                 </p>
               </div>
+            ) : (
+              <p className="border-t border-slate-100 pt-4 text-xs text-slate-400">
+                No courier tracking number has been recorded for this order yet.
+              </p>
             )}
           </div>
 
